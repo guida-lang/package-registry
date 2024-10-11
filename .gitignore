@@ -1,13 +1,9 @@
-cabal.sandbox.config
-dist
-log
-node_modules
-package-lock.json
-
 artifacts
+node_modules
 elm-stuff
 
-all-packages.json
+public/style.css
+public/style.css.map
+
+database/*.sqlite3
 packages
-search.json.gz
-sitemap.xml

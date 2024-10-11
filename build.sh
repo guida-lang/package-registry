@@ -2,7 +2,6 @@
 
 set -e
 
-
 ## DOWNLOAD BINARIES
 
 PATH=$(pwd)/node_modules/.bin:$PATH
@@ -13,7 +12,6 @@ fi
 if ! [ -x "$(command -v uglifyjs)" ]; then
   npm install uglify-js
 fi
-
 
 ## BUILD FRONTEND
 

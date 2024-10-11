@@ -1,11 +1,9 @@
 #!/bin/bash
 
 # Example:
-#   ./get-fonts.sh "assets/fonts" "Source+Sans+Pro:400,700,400italic,700italic|Source+Code+Pro"
-#
+#   ./get-fonts.sh "public/fonts" "Source+Sans+Pro:400,700,400italic,700italic|Source+Code+Pro"
 
 set -e
-
 
 DIR="$1"
 FAMILY="$2"
@@ -30,7 +28,6 @@ function download {
 
 download "_hints_off" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:73.0) Gecko/20100101 Firefox/73.0"
 download "_hints_on"  "Mozilla/5.0 (X11; Linux x86_64; rv:74.0) Gecko/20100101 Firefox/74.0"
-
 
 # Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36
 # Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36
