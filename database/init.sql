@@ -1,23 +1,27 @@
 CREATE TABLE IF NOT EXISTS uplinks (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  url         TEXT
+  url         TEXT UNIQUE,
+  lastIndex   INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS packages (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  author      TEXT,
-  project     TEXT,
+  author      TEXT NOT NULL,
+  project     TEXT NOT NULL,
   summary     TEXT,
   license     TEXT,
 
   uplink_id   INTEGER,
-  FOREIGN KEY(uplink_id) REFERENCES uplinks(id)
+  FOREIGN KEY(uplink_id) REFERENCES uplinks(id),
+
+  UNIQUE(author, project, uplink_id)
 );
 
 CREATE TABLE IF NOT EXISTS releases (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   version     TEXT,
   time        UNIXEPOCH NOT NULL,
+  docs        TEXT,
 
   package_id  INTEGER NOT NULL,
   FOREIGN KEY(package_id) REFERENCES packages(id),
@@ -25,7 +29,4 @@ CREATE TABLE IF NOT EXISTS releases (
   UNIQUE(version, package_id)
 );
 
--- INSERT INTO packages VALUES(NULL, "elm", "core", "Elm's standard libraries", "BSD-3-Clause", NULL);
--- INSERT INTO releases VALUES(NULL, "1.0.0", UNIXEPOCH(), 1);
--- INSERT INTO releases VALUES(NULL, "1.0.1", UNIXEPOCH(), 1);
--- INSERT INTO releases VALUES(NULL, "1.0.2", UNIXEPOCH(), 1);
+INSERT INTO uplinks VALUES(NULL, "https://package.elm-lang.org", 0) ON CONFLICT(url) DO NOTHING;
