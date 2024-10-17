@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS uplinks (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   url         TEXT UNIQUE,
-  lastIndex   INTEGER NOT NULL DEFAULT 0
+  last_index  INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS packages (
@@ -21,7 +21,10 @@ CREATE TABLE IF NOT EXISTS releases (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   version     TEXT,
   time        UNIXEPOCH NOT NULL,
+  elm_json    TEXT,
+  readme      TEXT,
   docs        TEXT,
+  hash        TEXT,
 
   package_id  INTEGER NOT NULL,
   FOREIGN KEY(package_id) REFERENCES packages(id),

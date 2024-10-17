@@ -18,14 +18,14 @@ const octokit = new Octokit({ auth: process.env.GITHUB_ACCESS_TOKEN });
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// express application
+// Express Application
 const app = express();
 
-// static content
+// Static Content
 app.use("/assets", express.static("public"));
 app.use("/artifacts", express.static("artifacts"));
 
-// fonts
+// Fonts
 app.get("/assets/fonts.css", async (request, response) => {
   const hints = request.get("User-Agent").includes("Macintosh") ? "off" : "on";
   const content = fs.readFileSync(
@@ -36,7 +36,7 @@ app.get("/assets/fonts.css", async (request, response) => {
   response.send(zlib.deflateSync(content).toString("base64"));
 });
 
-// database
+// Database
 process.env.DATABASE_URL ||= url
   .pathToFileURL("database/production.sqlite3")
   .toString();
@@ -45,7 +45,7 @@ sqlite3.verbose();
 
 const db = new sqlite3.Database(new URL(process.env.DATABASE_URL).pathname);
 
-// pages
+// Routes
 const makeHtml = function (title) {
   return `<!DOCTYPE HTML>
 <html>
@@ -65,262 +65,218 @@ const makeHtml = function (title) {
 </html>`;
 };
 
-app.get("/", async (_request, response) => {
-  response.send(makeHtml("Elm Packages"));
+app.get("/", async (_req, res) => {
+  res.send(makeHtml("Elm Packages"));
 });
 
-app.get("/packages", async (_request, response) => {
-  response.redirect(301, "/");
+app.get("/packages", async (_req, res) => {
+  res.redirect(301, "/");
 });
 
-app.get(
-  "/packages/:author/:project/releases.json",
-  async (request, response) => {
-    await new Promise((resolve, reject) => {
-      db.all(
-        "SELECT r.version, r.time FROM releases AS r INNER JOIN packages AS p ON p.id = r.package_id WHERE p.author = ? AND p.project = ?",
-        [request.params.author, request.params.project],
-        (err, rows) => {
-          if (err) {
-            reject(err);
-          } else {
-            response.send(
-              rows
-                .sort((a, b) => {
-                  const [majorA, minorA, patchA] = a.version.split(".");
-                  const [majorB, minorB, patchB] = b.version.split(".");
+app.get("/packages/:author/:project/releases.json", async (req, res, next) => {
+  db.all(
+    "SELECT r.version, r.time FROM releases AS r INNER JOIN packages AS p ON p.id = r.package_id WHERE p.author = ? AND p.project = ?",
+    [req.params.author, req.params.project],
+    (err, rows) => {
+      if (err) {
+        next(err);
+      } else {
+        res.send(
+          rows
+            .sort((a, b) => {
+              const [majorA, minorA, patchA] = a.version.split(".");
+              const [majorB, minorB, patchB] = b.version.split(".");
 
-                  if (majorA === majorB) {
-                    if (minorA === minorB) {
-                      return patchA - patchB;
-                    }
+              if (majorA === majorB) {
+                if (minorA === minorB) {
+                  return parseInt(patchA) - parseInt(patchB);
+                }
 
-                    return minorA - minorB;
-                  }
+                return parseInt(minorA) - parseInt(minorB);
+              }
 
-                  return majorA - majorB;
-                })
-                .reduce((acc, row) => {
-                  acc[row.version] = row.time;
-                  return acc;
-                }, {})
-            );
-            resolve();
-          }
-        }
-      );
-    });
-  }
-);
-
-app.get(
-  "/packages/:author/:project/:version?",
-  async (request, response, next) => {
-    await new Promise((resolve, reject) => {
-      db.get(
-        "SELECT * FROM packages WHERE author = ? AND project = ?",
-        [request.params.author, request.params.project],
-        (err, row) => {
-          if (err) {
-            reject(err);
-          } else {
-            if (row) {
-              response.send(makeHtml(`${row.author}/${row.project}`));
-            } else {
-              next();
-            }
-
-            resolve();
-          }
-        }
-      );
-    });
-  }
-);
-
-app.get(
-  "/packages/:author/:project/:version/about",
-  async (request, response, next) => {
-    await new Promise((resolve, reject) => {
-      db.get(
-        "SELECT * FROM packages WHERE author = ? AND project = ?",
-        [request.params.author, request.params.project],
-        (err, row) => {
-          if (err) {
-            reject(err);
-          } else {
-            if (row) {
-              response.send(makeHtml(`${row.author}/${row.project}`));
-            } else {
-              next();
-            }
-
-            resolve();
-          }
-        }
-      );
-    });
-  }
-);
-
-const foo = (filepath) => {
-  return async (request, response) => {
-    const { author, project, version } = request.params;
-    const zipballPath = `./packages/${author}/${project}-${version}.zip`;
-
-    if (!fs.existsSync(zipballPath)) {
-      const tags = await octokit.request(
-        "GET /repos/{owner}/{repo}/git/refs/tags/{version}",
-        { owner: author, repo: project, version }
-      );
-
-      const zipball = await octokit.request(
-        "GET /repos/{owner}/{repo}/zipball/refs/tags/{version}",
-        { owner: author, repo: project, version }
-      );
-
-      if (!fs.existsSync(`./packages/${author}`)) {
-        fs.mkdirSync(`./packages/${author}`, true);
+              return parseInt(majorA) - parseInt(majorB);
+            })
+            .reduce((acc, row) => {
+              acc[row.version] = row.time;
+              return acc;
+            }, {})
+        );
       }
-      fs.appendFileSync(zipballPath, Buffer.from(zipball.data));
     }
+  );
+});
 
-    const zip = new StreamZip({
-      file: zipballPath,
-      storeEntries: true,
-    });
+app.get("/packages/:author/:project/:version?", async (req, res, next) => {
+  db.get(
+    "SELECT * FROM packages WHERE author = ? AND project = ?",
+    [req.params.author, req.params.project],
+    (err, row) => {
+      if (row) {
+        res.send(makeHtml(`${row.author}/${row.project}`));
+      } else {
+        next(err);
+      }
+    }
+  );
+});
 
-    zip.on("ready", () => {
-      let topLevelDirectory = "";
+app.get("/packages/:author/:project/:version/about", async (req, res, next) => {
+  db.get(
+    "SELECT * FROM packages WHERE author = ? AND project = ?",
+    [req.params.author, req.params.project],
+    (err, row) => {
+      if (err) {
+        next(err);
+      } else {
+        res.send(makeHtml(`${row.author}/${row.project}`));
+      }
+    }
+  );
+});
 
-      for (const entry of Object.values(zip.entries())) {
-        const desc = entry.isDirectory ? "directory" : `${entry.size} bytes`;
-
-        if (
-          entry.isDirectory &&
-          new RegExp(`^${author}-${project}-[0-9a-f]{5,40}\/$`, "i").test(
-            entry.name
-          )
-        ) {
-          topLevelDirectory = entry.name;
+app.get(
+  "/packages/:author/:project/:version/elm.json",
+  async (req, res, next) => {
+    db.get(
+      `
+      SELECT r.elm_json FROM releases AS r
+      INNER JOIN packages AS p ON p.id = r.package_id
+      WHERE r.version = ? AND p.author = ? AND p.project = ?`,
+      [req.params.version, req.params.author, req.params.project],
+      (err, row) => {
+        if (row) {
+          res.send(row.elm_json);
+        } else {
+          next(err);
         }
       }
-
-      let content = zip
-        .entryDataSync(`${topLevelDirectory}${filepath}`)
-        .toString("utf8");
-
-      response.send(content);
-
-      // Do not forget to close the file once you're done
-      zip.close();
-    });
-  };
-};
-
-app.get("/packages/:author/:project/:version/elm.json", foo("elm.json"));
+    );
+  }
+);
 
 app.get(
   "/packages/:author/:project/:version/docs.json",
-  async (request, _response, next) => {
-    console.log("docs.json", request.params);
-    next();
+  async (req, res, next) => {
+    db.get(
+      `
+      SELECT r.docs FROM releases AS r
+      INNER JOIN packages AS p ON p.id = r.package_id
+      WHERE r.version = ? AND p.author = ? AND p.project = ?`,
+      [req.params.version, req.params.author, req.params.project],
+      (err, row) => {
+        if (err) {
+          next(err);
+        } else {
+          res.send(row.docs);
+        }
+      }
+    );
   }
 );
 
-app.get("/packages/:author/:project/:version/README.md", foo("README.md"));
+app.get(
+  "/packages/:author/:project/:version/README.md",
+  async (req, res, next) => {
+    db.get(
+      `
+      SELECT r.readme FROM releases AS r
+      INNER JOIN packages AS p ON p.id = r.package_id
+      WHERE r.version = ? AND p.author = ? AND p.project = ?`,
+      [req.params.version, req.params.author, req.params.project],
+      (err, row) => {
+        if (err) {
+          next(err);
+        } else {
+          res.send(row.readme);
+        }
+      }
+    );
+  }
+);
 
 app.get(
   "/packages/:author/:project/:version/endpoint.json",
-  async (request, response) => {
-    const { author, project, version } = request.params;
+  async (req, res, next) => {
+    db.get(
+      `
+      SELECT r.readme FROM releases AS r
+      INNER JOIN packages AS p ON p.id = r.package_id
+      WHERE r.version = ? AND p.author = ? AND p.project = ?`,
+      [req.params.version, req.params.author, req.params.project],
+      (err, row) => {
+        if (err) {
+          next(err);
+        } else {
+          res.send({
+            url: `https://github.com/${req.params.author}/${req.params.project}/zipball/${req.params.version}/`,
+            hash: row.hash,
+          });
+        }
+      }
+    );
+  }
+);
 
-    // ...
-    const filename = `./packages/${author}/${project}-${version}.zip`;
-    const hash = crypto.createHash("sha1");
+app.get("/packages/:author/:project/:version/:path*", async (req, res) => {
+  res.send(
+    makeHtml(
+      `${req.params.path.replaceAll("-", ".")} - ${req.params.author}/${
+        req.params.project
+      } ${req.params.version}`
+    )
+  );
+});
 
-    const input = fs.createReadStream(filename);
-    input.on("readable", () => {
-      // Only one element is going to be produced by the
-      // hash stream.
-      const data = input.read();
-
-      if (data) {
-        hash.update(data);
+app.get("/search.json", async (_req, res, next) => {
+  db.all(
+    `
+    SELECT CONCAT(p.author, '/', p.project) AS name, p.summary, p.license, r.version FROM packages AS p
+    INNER JOIN releases AS r ON p.id = r.package_id
+    WHERE r.id IN (SELECT MAX(r.id) AS id FROM releases AS r GROUP BY r.package_id) AND p.summary IS NOT NULL AND p.license IS NOT NULL`,
+    (err, rows) => {
+      if (err) {
+        next(err);
       } else {
-        response.send({
-          url: `https://github.com/${author}/${project}/zipball/${version}/`,
-          hash: hash.digest("hex"),
-        });
+        res.set("Content-Type", "application/json").send(rows);
       }
-    });
-  }
-);
-
-app.get(
-  "/packages/:author/:project/:version/:path*",
-  async (request, response, next) => {
-    console.log(request.params);
-    next();
-  }
-);
-
-app.get("/search.json", async (_request, response) => {
-  await new Promise((resolve, reject) => {
-    db.all(
-      "SELECT CONCAT(p.author, '/', p.project) AS name, p.summary, p.license, r.version FROM packages AS p INNER JOIN releases AS r ON p.id = r.package_id WHERE r.id IN (SELECT MAX(r.id) AS id FROM releases AS r GROUP BY r.package_id)",
-      (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          response.set("Content-Type", "application/json");
-          response.send(rows);
-          resolve();
-        }
-      }
-    );
-  });
+    }
+  );
 });
 
-app.post("/all-packages", async (_request, response) => {
-  await new Promise((resolve, reject) => {
-    db.all(
-      "SELECT CONCAT(p.author, '/', p.project) AS name, r.version FROM packages AS p INNER JOIN releases AS r ON p.id = r.package_id",
-      (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          response.set("Content-Type", "application/json");
-          response.send(
-            rows.reduce((acc, row) => {
-              acc[row.name] ||= [];
-              acc[row.name].push(row.version);
-              return acc;
-            }, {})
-          );
-          resolve();
-        }
+app.post("/all-packages", async (_req, res, next) => {
+  db.all(
+    "SELECT CONCAT(p.author, '/', p.project) AS name, r.version FROM packages AS p INNER JOIN releases AS r ON p.id = r.package_id",
+    (err, rows) => {
+      if (err) {
+        next(err);
+      } else {
+        res.set("Content-Type", "application/json").send(
+          rows.reduce((acc, row) => {
+            acc[row.name] ||= [];
+            acc[row.name].push(row.version);
+            return acc;
+          }, {})
+        );
       }
-    );
-  });
+    }
+  );
 });
 
-app.post("/all-packages/since/:index", async (request, response) => {
-  await new Promise((resolve, reject) => {
-    db.all(
-      "SELECT CONCAT(p.author, '/', p.project, '@', r.version) AS name FROM packages AS p INNER JOIN releases AS r ON p.id = r.package_id WHERE r.id > ? ORDER BY r.id DESC",
-      [request.params.index],
-      (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          response.set("Content-Type", "application/json");
-          response.send(rows.map((row) => row.name));
-          resolve();
-        }
+app.post("/all-packages/since/:index", async (req, res, next) => {
+  db.all(
+    "SELECT CONCAT(p.author, '/', p.project, '@', r.version) AS name FROM packages AS p INNER JOIN releases AS r ON p.id = r.package_id WHERE r.id > ? ORDER BY r.id DESC",
+    [req.params.index],
+    (err, rows) => {
+      if (err) {
+        next(err);
+      } else {
+        res
+          .set("Content-Type", "application/json")
+          .send(rows.map((row) => row.name));
       }
-    );
-  });
+    }
+  );
 });
 
 const registerUpload = upload.fields([
@@ -330,20 +286,20 @@ const registerUpload = upload.fields([
   { name: "github-hash", maxCount: 1 },
 ]);
 
-app.post("/register", registerUpload, async (request, response) => {
-  response.send(request.files);
+app.post("/register", registerUpload, async (req, res) => {
+  res.send(req.files);
 });
 
-app.get("/help/design-guidelines", async (_request, response) => {
-  response.send(makeHtml("Design Guidelines"));
+app.get("/help/design-guidelines", async (_req, res) => {
+  res.send(makeHtml("Design Guidelines"));
 });
 
-app.get("/help/documentation-format", async (_request, response) => {
-  response.send(makeHtml("Documentation Format"));
+app.get("/help/documentation-format", async (_req, res) => {
+  res.send(makeHtml("Documentation Format"));
 });
 
-app.use((_request, response) => {
-  response.status(404).send(makeHtml("Not Found"));
+app.use((_req, res) => {
+  res.status(404).send(makeHtml("Not Found"));
 });
 
 // Helpers
@@ -363,18 +319,38 @@ const handlePackage = async (uplink, pkg) => {
   const dirPath = `./packages/${uplink.id}/${author}`;
   const zipballPath = `${dirPath}/${project}-${version}.zip`;
 
-  const zipball = await octokit.request(
-    "GET /repos/{owner}/{repo}/zipball/refs/tags/{version}",
-    { owner: author, repo: project, version }
-  );
+  let zipball;
 
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
+  try {
+    zipball = await octokit.request(
+      "GET /repos/{owner}/{repo}/zipball/refs/tags/{version}",
+      { owner: author, repo: project, version }
+    );
+  } catch (error) {
+    if (error.status === 404) {
+      console.log(`The ${author}/${project}@${version} tag was not found...`);
+    } else {
+      console.error(
+        `An error occurred while checking for ${author}/${project}@${version} tag: ${error?.response?.data?.message}`
+      );
+    }
   }
 
-  fs.appendFileSync(zipballPath, Buffer.from(zipball.data));
+  let hash;
 
-  return new Promise((resolve, reject) => {
+  if (zipball) {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+    }
+
+    const buffer = Buffer.from(zipball.data);
+
+    fs.appendFileSync(zipballPath, buffer);
+
+    hash = crypto.createHash("sha1").update(buffer).digest("hex");
+  }
+
+  return new Promise((resolveAll, rejectAll) => {
     Promise.all([
       new Promise((resolve) => {
         let releasesRawData = "";
@@ -409,61 +385,69 @@ const handlePackage = async (uplink, pkg) => {
         );
       }),
       new Promise((resolve) => {
-        const elmJsonRegExp = new RegExp(
-          `^${author}-${project}-[0-9a-f]{5,40}\/elm(-package)?\.json$`,
-          "i"
+        let elmRawData = "";
+
+        https.get(
+          `${uplink.url}/packages/${author}/${project}/${version}/elm.json`,
+          (res) => {
+            res.on("data", (chunk) => {
+              elmRawData += chunk;
+            });
+
+            res.on("end", () => {
+              resolve(JSON.parse(elmRawData));
+            });
+          }
         );
-
-        const zip = new StreamZip({
-          file: zipballPath,
-          storeEntries: true,
-        });
-
-        zip.on("ready", () => {
-          let elmJsonEntry;
-
-          for (const entry of Object.values(zip.entries())) {
-            if (!entry.isDirectory && elmJsonRegExp.test(entry.name)) {
-              elmJsonEntry = entry.name;
-            }
-          }
-
-          let elmJson = {};
-
-          if (elmJsonEntry) {
-            const content = zip.entryDataSync(elmJsonEntry).toString("utf8");
-            elmJson = JSON.parse(content);
-          }
-
-          // Do not forget to close the file once you're done
-          zip.close();
-
-          resolve(elmJson);
-        });
       }),
-    ]).then(([releases, docs, elmJson]) => {
+      new Promise((resolve) => {
+        let readmeRawData = "";
+
+        https.get(
+          `${uplink.url}/packages/${author}/${project}/${version}/README.md`,
+          (res) => {
+            res.on("data", (chunk) => {
+              readmeRawData += chunk;
+            });
+
+            res.on("end", () => {
+              resolve(readmeRawData);
+            });
+          }
+        );
+      }),
+    ]).then(([releases, docs, elmJson, readme]) => {
       db.serialize(function () {
         db.run("BEGIN");
 
         db.run(
           "INSERT INTO packages VALUES (NULL, ?, ?, ?, ?, ?) ON CONFLICT(author, project, uplink_id) DO UPDATE SET summary=excluded.summary, license=excluded.license",
-          [author, project, elmJson.summary, elmJson.license, uplink.id]
+          [author, project, elmJson?.summary, elmJson?.license, uplink.id]
         );
 
         db.run(
-          "INSERT INTO releases VALUES (NULL, ?, ?, ?, (SELECT id FROM packages WHERE author = ? AND project = ?))",
-          [version, releases[version], JSON.stringify(docs), author, project]
+          "INSERT INTO releases VALUES (NULL, ?, ?, ?, ?, ?, ?, (SELECT id FROM packages WHERE author = ? AND project = ?))",
+          [
+            version,
+            releases[version],
+            elmJson && JSON.stringify(elmJson),
+            readme,
+            JSON.stringify(docs),
+            hash,
+            author,
+            project,
+          ]
         );
 
-        db.run("UPDATE uplinks SET lastIndex = lastIndex + 1 WHERE id = ?", [
+        db.run("UPDATE uplinks SET last_index = last_index + 1 WHERE id = ?", [
           uplink.id,
         ]);
 
         db.run("COMMIT", (err) => {
           if (err) {
-            reject(err);
+            rejectAll(err);
           } else {
-            resolve();
+            resolveAll();
           }
         });
       });
@@ -484,7 +468,7 @@ db.each(
   "SELECT * FROM uplinks",
   handleError((uplink) => {
     https
-      .get(`${uplink.url}/all-packages/since/${uplink.lastIndex}`, (res) => {
+      .get(`${uplink.url}/all-packages/since/${uplink.last_index}`, (res) => {
         let allPackagesRawData = "";
 
         res.on("data", (chunk) => {
@@ -509,9 +493,9 @@ db.each(
   })
 );
 
-// start web server
+// Start Web Server
 process.env.PORT ||= 3000;
 
 app.listen(process.env.PORT, () => {
-  console.log(`Server is listening on http://localhost:${process.env.PORT}...`);
+  console.log(`Serving at http://localhost:${process.env.PORT}`);
 });
