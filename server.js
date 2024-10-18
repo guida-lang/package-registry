@@ -165,10 +165,10 @@ app.get(
       WHERE r.version = ? AND p.author = ? AND p.project = ?`,
       [req.params.version, req.params.author, req.params.project],
       (err, row) => {
-        if (err) {
-          next(err);
-        } else {
+        if (row) {
           res.send(row.docs);
+        } else {
+          next(err);
         }
       }
     );
@@ -185,10 +185,10 @@ app.get(
       WHERE r.version = ? AND p.author = ? AND p.project = ?`,
       [req.params.version, req.params.author, req.params.project],
       (err, row) => {
-        if (err) {
-          next(err);
-        } else {
+        if (row) {
           res.send(row.readme);
+        } else {
+          next(err);
         }
       }
     );
@@ -200,7 +200,7 @@ app.get(
   async (req, res, next) => {
     db.get(
       `
-      SELECT r.readme FROM releases AS r
+      SELECT r.hash FROM releases AS r
       INNER JOIN packages AS p ON p.id = r.package_id
       WHERE r.version = ? AND p.author = ? AND p.project = ?`,
       [req.params.version, req.params.author, req.params.project],
