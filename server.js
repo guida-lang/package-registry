@@ -7,12 +7,10 @@ import path from "node:path";
 import zlib from "node:zlib";
 import https from "node:https";
 import { Octokit } from "@octokit/core";
-import StreamZip from "node-stream-zip";
 import crypto from "node:crypto";
 
-const upload = multer({ dest: "packages/" });
-
 const octokit = new Octokit({ auth: process.env.GITHUB_ACCESS_TOKEN });
+const upload = multer();
 
 // https://flaviocopes.com/fix-dirname-not-defined-es-module-scope/
 const __filename = url.fileURLToPath(import.meta.url);
@@ -286,8 +284,106 @@ const registerUpload = upload.fields([
   { name: "github-hash", maxCount: 1 },
 ]);
 
-app.post("/register", registerUpload, async (req, res) => {
-  res.send(req.files);
+app.post("/register", registerUpload, async (req, res, next) => {
+  let commitHash, pkg, vsn;
+
+  if (req.query["commit-hash"]) {
+    commitHash = req.query["commit-hash"];
+  } else {
+    return res.status(400).send(`I need a \`commit-hash\` query parameter.`);
+  }
+
+  if (req.query["name"]) {
+    pkg = req.query["name"];
+    // TODO verifyName
+  } else {
+    return res.status(400).send(`I need a \`name\` query parameter.`);
+  }
+
+  if (req.query["version"]) {
+    vsn = req.query["version"];
+    // TODO verifyVersion token memory pkg commitHash
+  } else {
+    return res.status(400).send(`I need a \`version\` query parameter.`);
+  }
+
+  const [author, project] = pkg.split("/");
+
+  const dirPath = `./packages/0/${author}`;
+  const zipballPath = `${dirPath}/${project}-${vsn}.zip`;
+
+  let zipball;
+
+  try {
+    zipball = await octokit.request(
+      "GET /repos/{owner}/{repo}/zipball/refs/tags/{vsn}",
+      { owner: author, repo: project, vsn }
+    );
+  } catch (error) {
+    if (error.status === 404) {
+      console.log(`The ${author}/${project}@${vsn} tag was not found...`);
+    } else {
+      console.error(
+        `An error occurred while checking for ${author}/${project}@${vsn} tag: ${error?.response?.data?.message}`
+      );
+    }
+  }
+
+  let hash;
+
+  if (zipball) {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+    }
+
+    const buffer = Buffer.from(zipball.data);
+
+    fs.appendFileSync(zipballPath, buffer);
+
+    hash = crypto.createHash("sha1").update(buffer).digest("hex");
+  }
+
+  // TODO compare hash with commitHash
+
+  const elmJson = JSON.parse(req.files["elm.json"][0].buffer.toString());
+  const docs = JSON.parse(req.files["docs.json"][0].buffer.toString());
+  const readme = req.files["README.md"][0].buffer.toString();
+
+  const time = Math.floor(new Date().getTime() / 1000);
+
+  db.serialize(function () {
+    db.run("BEGIN");
+
+    db.run("INSERT INTO packages VALUES (NULL, ?, ?, ?, ?, NULL)", [
+      author,
+      project,
+      elmJson.summary,
+      elmJson.license,
+    ]);
+
+    db.run(
+      "INSERT INTO releases VALUES (NULL, ?, ?, ?, ?, ?, ?, (SELECT id FROM packages WHERE author = ? AND project = ?))",
+      [
+        vsn,
+        time,
+        JSON.stringify(elmJson),
+        readme,
+        JSON.stringify(docs),
+        hash,
+        author,
+        project,
+      ]
+    );
+
+    db.run("COMMIT", (err) => {
+      if (err) {
+        // TODO revert pkg vsn
+        res.status(400).send(err);
+      } else {
+        res.end();
+      }
+    });
+  });
 });
 
 app.get("/help/design-guidelines", async (_req, res) => {
