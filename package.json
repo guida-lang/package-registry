@@ -1,8 +1,9 @@
 {
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "scss": "sass style.scss public/style.css --style compressed"
+    "build": "elm make src/Main.elm --optimize --output=artifacts/elm.js",
+    "scss": "sass style.scss public/style.css --style compressed",
+    "start": "node server.js"
   },
   "dependencies": {
     "@octokit/core": "^6.1.2",

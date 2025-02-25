@@ -12,9 +12,41 @@ It is best practice to use [semantic versioning](http://semver.org/) when choosi
 
 ![automatic semantic versioning](https://user-images.githubusercontent.com/1658058/106834628-cd793400-6663-11eb-8cfc-b6d3a5a16c05.png)
 
-
 ## Reliability
 
 All community packages are written entirely in Elm, so all the things that make your apps reliable are helping make packages reliable.
 
 A small set of packages provide access to [The Web Platform](https://platform.html5.org/). These packages are managed by @elm to ensure that (1) the APIs are exposed in a way that makes sense for Elm and (2) they are carefully vetted to make sure the underlying JS code is stable. We cover a decent amount of The Web Platform now, but you can always use [ports](https://guide.elm-lang.org/interop/ports.html) or [custom elements](https://guide.elm-lang.org/interop/custom_elements.html) if something is not covered yet!
+
+## Run server
+
+Start by checking if the node version on your machine matches the one found on `.nvmrc`.
+We advice the use of [Node Version Manager][https://github.com/nvm-sh/nvm] by running:
+
+```
+nvm use
+```
+
+Install the project dependencies with the following command:
+
+```
+npm ci
+```
+
+Compile the Elm code:
+
+```
+npm run build
+```
+
+Generate the required stylesheet by running the scss script:
+
+```
+npm run scss
+```
+
+Finally, you can start the server by running:
+
+```
+npm start
+```
