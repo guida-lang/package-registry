@@ -18,7 +18,7 @@ import Url.Parser as Parser exposing ((</>), Parser, custom, fragment, map, oneO
 -- MAIN
 
 
-main : Program () Model Msg
+main : Program Int Model Msg
 main =
     Browser.application
         { init = init
@@ -64,13 +64,14 @@ subscriptions _ =
 view : Model -> Browser.Document Msg
 view model =
     case model.page of
-        NotFound _ ->
+        NotFound session ->
             Skeleton.view never
                 { title = "Not Found"
                 , header = []
                 , warning = Skeleton.NoProblems
                 , attrs = Problem.styles
                 , kids = Problem.notFound
+                , year = session.year
                 }
 
         Search search ->
@@ -90,11 +91,11 @@ view model =
 -- INIT
 
 
-init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
-init _ url key =
+init : Int -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
+init year url key =
     stepUrl url
         { key = key
-        , page = NotFound Session.empty
+        , page = NotFound (Session.empty year)
         }
 
 

@@ -1,8 +1,10 @@
 {
   "type": "module",
   "scripts": {
-    "build": "elm make src/Main.elm --optimize --output=artifacts/elm.js",
-    "scss": "sass style.scss public/style.css --style compressed",
+    "build": "npm-run-all --parallel build:*",
+    "build:elm": "./build.sh",
+    "build:scss": "sass style.scss public/style.css --no-source-map --style compressed",
+    "elm-format": "elm-format . --yes",
     "start": "node server.js"
   },
   "dependencies": {
@@ -13,6 +15,11 @@
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {
-    "sass": "^1.79.5"
+    "@flydotio/dockerfile": "^0.7.10",
+    "elm": "^0.19.1-6",
+    "elm-format": "^0.8.7",
+    "npm-run-all": "^4.1.5",
+    "sass": "^1.79.5",
+    "uglify-js": "^3.19.3"
   }
 }

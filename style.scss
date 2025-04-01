@@ -1,13 +1,13 @@
 // Colors
 $color: #000e16;
 
-$link-color: #1293d8;
-$link-light-color: #5fabdc;
+$link-color: #fe9a00;
+$link-light-color: #ffb900;
 
 $pre-bg-color: #fefefe;
 $pre-border-color: #f5f5f5;
 
-$header-bg-color: #5fabdc;
+$header-bg-color: #fe9a00;
 $header-underbar-bg-color: #f2e19e;
 
 $nav-color: #fff;
@@ -349,7 +349,7 @@ code {
   font-family: "Source Code Pro", Consolas, "Liberation Mono", Menlo, Courier,
     monospace;
 
-  :not(pre) > & {
+  :not(pre)>& {
     padding: 0;
     padding-top: 0.2em;
     padding-bottom: 0.2em;

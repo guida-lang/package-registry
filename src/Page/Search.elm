@@ -100,6 +100,7 @@ view model =
         [ lazy2 viewSearch model.query model.entries
         , viewSidebar
         ]
+    , year = model.session.year
     }
 
 
@@ -212,7 +213,7 @@ viewSidebar =
             , li [] [ a [ href "https://github.com/elm-lang/elm-package/blob/master/README.md" ] [ text "Using Packages" ] ]
             , li [] [ a [ href "/help/design-guidelines" ] [ text "API Design Guidelines" ] ]
             , li [] [ a [ href "/help/documentation-format" ] [ text "Write great docs" ] ]
-            , li [] [ a [ href "https://elm-lang.org" ] [ text "Elm Website" ] ]
+            , li [] [ a [ href "https://guida-lang.org" ] [ text "Guida Website" ] ]
             ]
         ]
 

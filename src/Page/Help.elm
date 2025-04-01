@@ -69,6 +69,7 @@ view model =
     , warning = Skeleton.NoProblems
     , attrs = []
     , kids = [ viewContent model.title model.content ]
+    , year = model.session.year
     }
 
 

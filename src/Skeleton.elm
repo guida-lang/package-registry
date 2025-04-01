@@ -27,6 +27,7 @@ type alias Details msg =
     , warning : Warning
     , attrs : List (Attribute msg)
     , kids : List (Html msg)
+    , year : Int
     }
 
 
@@ -84,7 +85,7 @@ view toMsg details =
         , lazy viewWarning details.warning
         , Html.map toMsg <|
             div (class "center" :: style "flex" "1" :: details.attrs) details.kids
-        , viewFooter
+        , viewFooter details.year
         ]
     }
 
@@ -161,11 +162,11 @@ viewWarning warning =
 -- VIEW FOOTER
 
 
-viewFooter : Html msg
-viewFooter =
+viewFooter : Int -> Html msg
+viewFooter year =
     div [ class "footer" ]
-        [ a [ class "grey-link", href "https://github.com/elm/package.elm-lang.org/" ] [ text "Site Source" ]
-        , text " — © 2012-2020 Evan Czaplicki"
+        [ a [ class "grey-link", href "https://github.com/guida-lang/package-registry/" ] [ text "Site Source" ]
+        , text (" — © " ++ String.fromInt year ++ " Décio Ferreira")
         ]
 
 

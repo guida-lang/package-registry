@@ -237,6 +237,7 @@ view model =
         [ viewContent model
         , viewSidebar model
         ]
+    , year = model.session.year
     }
 
 

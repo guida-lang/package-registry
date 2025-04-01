@@ -39,12 +39,13 @@ type alias Data =
     , readmes : Dict.Dict String String
     , docs : Dict.Dict String (List Docs.Module)
     , outlines : Dict.Dict String Outline.PackageInfo
+    , year : Int
     }
 
 
-empty : Data
-empty =
-    Data Nothing Dict.empty Dict.empty Dict.empty Dict.empty
+empty : Int -> Data
+empty year =
+    Data Nothing Dict.empty Dict.empty Dict.empty Dict.empty year
 
 
 

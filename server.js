@@ -21,17 +21,18 @@ const app = express();
 
 // Static Content
 app.use("/assets", express.static("public"));
+app.use("/public/fonts", express.static("public/fonts"));
 app.use("/artifacts", express.static("artifacts"));
 
 // Fonts
 app.get("/assets/fonts.css", async (request, response) => {
   const hints = request.get("User-Agent").includes("Macintosh") ? "off" : "on";
   const content = fs.readFileSync(
-    path.join(__dirname, `public/fonts/_hints_${hints}.css.gz`)
+    path.join(__dirname, `public/fonts/_hints_${hints}.css`)
   );
 
   response.set("Content-Type", "text/css");
-  response.send(zlib.deflateSync(content).toString("base64"));
+  response.send(content);
 });
 
 // Database
@@ -53,18 +54,18 @@ const makeHtml = function (title) {
   <title>${title}</title>
   <link rel="stylesheet" href="/assets/fonts.css">
   <link rel="stylesheet" href="/assets/style.css">
-  <script src="/artifacts/elm.js"></script>
+  <script src="/artifacts/elm.min.js"></script>
   <script src="/assets/highlight/highlight.pack.js"></script>
   <link rel="stylesheet" href="/assets/highlight/styles/default.css">
 </head>
 <body>
-<script>Elm.Main.init()</script>
+<script>Elm.Main.init({ flags: new Date().getFullYear() })</script>
 </body>
 </html>`;
 };
 
 app.get("/", async (_req, res) => {
-  res.send(makeHtml("Elm Packages"));
+  res.send(makeHtml("Guida Packages"));
 });
 
 app.get("/packages", async (_req, res) => {
@@ -219,8 +220,7 @@ app.get(
 app.get("/packages/:author/:project/:version/:path*", async (req, res) => {
   res.send(
     makeHtml(
-      `${req.params.path.replaceAll("-", ".")} - ${req.params.author}/${
-        req.params.project
+      `${req.params.path.replaceAll("-", ".")} - ${req.params.author}/${req.params.project
       } ${req.params.version}`
     )
   );
@@ -277,114 +277,114 @@ app.post("/all-packages/since/:index", async (req, res, next) => {
   );
 });
 
-const registerUpload = upload.fields([
-  { name: "elm.json", maxCount: 1 },
-  { name: "docs.json", maxCount: 1 },
-  { name: "README.md", maxCount: 1 },
-  { name: "github-hash", maxCount: 1 },
-]);
+// const registerUpload = upload.fields([
+//   { name: "elm.json", maxCount: 1 },
+//   { name: "docs.json", maxCount: 1 },
+//   { name: "README.md", maxCount: 1 },
+//   { name: "github-hash", maxCount: 1 },
+// ]);
 
-app.post("/register", registerUpload, async (req, res, next) => {
-  let commitHash, pkg, vsn;
+// app.post("/register", registerUpload, async (req, res, next) => {
+//   let commitHash, pkg, vsn;
 
-  if (req.query["commit-hash"]) {
-    commitHash = req.query["commit-hash"];
-  } else {
-    return res.status(400).send(`I need a \`commit-hash\` query parameter.`);
-  }
+//   if (req.query["commit-hash"]) {
+//     commitHash = req.query["commit-hash"];
+//   } else {
+//     return res.status(400).send(`I need a \`commit-hash\` query parameter.`);
+//   }
 
-  if (req.query["name"]) {
-    pkg = req.query["name"];
-    // TODO verifyName
-  } else {
-    return res.status(400).send(`I need a \`name\` query parameter.`);
-  }
+//   if (req.query["name"]) {
+//     pkg = req.query["name"];
+//     // TODO verifyName
+//   } else {
+//     return res.status(400).send(`I need a \`name\` query parameter.`);
+//   }
 
-  if (req.query["version"]) {
-    vsn = req.query["version"];
-    // TODO verifyVersion token memory pkg commitHash
-  } else {
-    return res.status(400).send(`I need a \`version\` query parameter.`);
-  }
+//   if (req.query["version"]) {
+//     vsn = req.query["version"];
+//     // TODO verifyVersion token memory pkg commitHash
+//   } else {
+//     return res.status(400).send(`I need a \`version\` query parameter.`);
+//   }
 
-  const [author, project] = pkg.split("/");
+//   const [author, project] = pkg.split("/");
 
-  const dirPath = `./packages/0/${author}`;
-  const zipballPath = `${dirPath}/${project}-${vsn}.zip`;
+//   const dirPath = `./packages/0/${author}`;
+//   const zipballPath = `${dirPath}/${project}-${vsn}.zip`;
 
-  let zipball;
+//   let zipball;
 
-  try {
-    zipball = await octokit.request(
-      "GET /repos/{owner}/{repo}/zipball/refs/tags/{vsn}",
-      { owner: author, repo: project, vsn }
-    );
-  } catch (error) {
-    if (error.status === 404) {
-      console.log(`The ${author}/${project}@${vsn} tag was not found...`);
-    } else {
-      console.error(
-        `An error occurred while checking for ${author}/${project}@${vsn} tag: ${error?.response?.data?.message}`
-      );
-    }
-  }
+//   try {
+//     zipball = await octokit.request(
+//       "GET /repos/{owner}/{repo}/zipball/refs/tags/{vsn}",
+//       { owner: author, repo: project, vsn }
+//     );
+//   } catch (error) {
+//     if (error.status === 404) {
+//       console.log(`The ${author}/${project}@${vsn} tag was not found...`);
+//     } else {
+//       console.error(
+//         `An error occurred while checking for ${author}/${project}@${vsn} tag: ${error?.response?.data?.message}`
+//       );
+//     }
+//   }
 
-  let hash;
+//   let hash;
 
-  if (zipball) {
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
-    }
+//   if (zipball) {
+//     if (!fs.existsSync(dirPath)) {
+//       fs.mkdirSync(dirPath, { recursive: true });
+//     }
 
-    const buffer = Buffer.from(zipball.data);
+//     const buffer = Buffer.from(zipball.data);
 
-    fs.appendFileSync(zipballPath, buffer);
+//     fs.appendFileSync(zipballPath, buffer);
 
-    hash = crypto.createHash("sha1").update(buffer).digest("hex");
-  }
+//     hash = crypto.createHash("sha1").update(buffer).digest("hex");
+//   }
 
-  // TODO compare hash with commitHash
+//   // TODO compare hash with commitHash
 
-  const elmJson = JSON.parse(req.files["elm.json"][0].buffer.toString());
-  const docs = JSON.parse(req.files["docs.json"][0].buffer.toString());
-  const readme = req.files["README.md"][0].buffer.toString();
+//   const elmJson = JSON.parse(req.files["elm.json"][0].buffer.toString());
+//   const docs = JSON.parse(req.files["docs.json"][0].buffer.toString());
+//   const readme = req.files["README.md"][0].buffer.toString();
 
-  const time = Math.floor(new Date().getTime() / 1000);
+//   const time = Math.floor(new Date().getTime() / 1000);
 
-  db.serialize(function () {
-    db.run("BEGIN");
+//   db.serialize(function () {
+//     db.run("BEGIN");
 
-    db.run("INSERT INTO packages VALUES (NULL, ?, ?, ?, ?, NULL)", [
-      author,
-      project,
-      elmJson.summary,
-      elmJson.license,
-    ]);
+//     db.run("INSERT INTO packages VALUES (NULL, ?, ?, ?, ?, NULL)", [
+//       author,
+//       project,
+//       elmJson.summary,
+//       elmJson.license,
+//     ]);
 
-    db.run(
-      "INSERT INTO releases VALUES (NULL, ?, ?, ?, ?, ?, ?, (SELECT id FROM packages WHERE author = ? AND project = ?))",
-      [
-        vsn,
-        time,
-        JSON.stringify(elmJson),
-        readme,
-        JSON.stringify(docs),
-        hash,
-        author,
-        project,
-      ]
-    );
+//     db.run(
+//       "INSERT INTO releases VALUES (NULL, ?, ?, ?, ?, ?, ?, (SELECT id FROM packages WHERE author = ? AND project = ?))",
+//       [
+//         vsn,
+//         time,
+//         JSON.stringify(elmJson),
+//         readme,
+//         JSON.stringify(docs),
+//         hash,
+//         author,
+//         project,
+//       ]
+//     );
 
-    db.run("COMMIT", (err) => {
-      if (err) {
-        // TODO revert pkg vsn
-        res.status(400).send(err);
-      } else {
-        res.end();
-      }
-    });
-  });
-});
+//     db.run("COMMIT", (err) => {
+//       if (err) {
+//         // TODO revert pkg vsn
+//         res.status(400).send(err);
+//       } else {
+//         res.end();
+//       }
+//     });
+//   });
+// });
 
 app.get("/help/design-guidelines", async (_req, res) => {
   res.send(makeHtml("Design Guidelines"));
@@ -551,43 +551,43 @@ const handlePackage = async (uplink, pkg) => {
   });
 };
 
-const handleAllPackages = async (uplink, allPackages) => {
-  for (const pkg of allPackages) {
-    await handlePackage(uplink, pkg);
-  }
-};
+// const handleAllPackages = async (uplink, allPackages) => {
+//   for (const pkg of allPackages) {
+//     await handlePackage(uplink, pkg);
+//   }
+// };
 
 // Database Setup
 db.exec(fs.readFileSync(path.join(__dirname, "database/init.sql")).toString());
 
-db.each(
-  "SELECT * FROM uplinks",
-  handleError((uplink) => {
-    https
-      .get(`${uplink.url}/all-packages/since/${uplink.last_index}`, (res) => {
-        let allPackagesRawData = "";
+// db.each(
+//   "SELECT * FROM uplinks",
+//   handleError((uplink) => {
+//     https
+//       .get(`${uplink.url}/all-packages/since/${uplink.last_index}`, (res) => {
+//         let allPackagesRawData = "";
 
-        res.on("data", (chunk) => {
-          allPackagesRawData += chunk;
-        });
+//         res.on("data", (chunk) => {
+//           allPackagesRawData += chunk;
+//         });
 
-        res.on("end", () => {
-          try {
-            const allPackages = JSON.parse(allPackagesRawData);
+//         res.on("end", () => {
+//           try {
+//             const allPackages = JSON.parse(allPackagesRawData);
 
-            if (allPackages.length > 0) {
-              handleAllPackages(uplink, allPackages.reverse());
-            }
-          } catch (e) {
-            console.error(e);
-          }
-        });
-      })
-      .on("error", (e) => {
-        console.error(e);
-      });
-  })
-);
+//             if (allPackages.length > 0) {
+//               handleAllPackages(uplink, allPackages.reverse());
+//             }
+//           } catch (e) {
+//             console.error(e);
+//           }
+//         });
+//       })
+//       .on("error", (e) => {
+//         console.error(e);
+//       });
+//   })
+// );
 
 // Start Web Server
 process.env.PORT ||= 3000;

@@ -108,6 +108,7 @@ view model =
                     viewReleases model.author model.project <|
                         List.map .version (List.sortBy .time (r :: rs))
                 ]
+    , year = model.session.year
     }
 
 
