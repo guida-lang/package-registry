@@ -34,3 +34,17 @@ Visit http://localhost:3000.
 ## Deploy w/ Fly.io
 
 Deploy the application by running `fly deploy`.
+
+## Configuration
+
+### Environment Variables
+
+Below is a list of environment variables required by the application:
+
+- **DATABASE_URL**: The connection string for the database used by the application.
+Defaults to `database/development.sqlite3`.
+- **ENABLE_CACHE**: Allows for the creation of a local copy of the packages.
+Disabled by default.
+- **CRON_TIME**: The cron syntax to fire off the background job to keep the registry
+updated with the uplinks. Defaults to `0 0 * * * *` (hourly).
+- **PORT**: The port on which the server will run. Defaults to `3000`.

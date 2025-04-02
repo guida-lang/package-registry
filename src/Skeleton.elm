@@ -183,16 +183,16 @@ viewLogo =
         , style "display" "flex"
         , style "align-items" "center"
         ]
-        [ Logo.logo 32
+        [ Logo.logo 40
         , div
             [ style "padding-left" "8px" ]
             [ div
                 [ style "line-height" "24px"
-                , style "font-size" "30px"
+                , style "font-size" "26px"
                 ]
-                [ text "elm" ]
+                [ text "guida" ]
             , div
-                [ style "font-size" "12px"
+                [ style "font-size" "16px"
                 ]
                 [ text "packages" ]
             ]
