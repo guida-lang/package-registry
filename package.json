@@ -4,6 +4,7 @@
     "build": "npm-run-all --parallel build:*",
     "build:elm": "./build.sh",
     "build:scss": "sass style.scss public/style.css --no-source-map --style compressed",
+    "test:elm-review": "elm-review",
     "elm-format": "elm-format . --yes",
     "start": "node server.js"
   },
@@ -21,6 +22,7 @@
     "@flydotio/dockerfile": "^0.7.10",
     "elm": "^0.19.1-6",
     "elm-format": "^0.8.7",
+    "elm-review": "^2.13.2",
     "npm-run-all": "^4.1.5",
     "sass": "^1.79.5",
     "uglify-js": "^3.19.3"
