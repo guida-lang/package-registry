@@ -5,7 +5,6 @@ import fs from "node:fs";
 import sqlite3 from "sqlite3";
 import url from "node:url";
 import path from "node:path";
-import zlib from "node:zlib";
 import https from "node:https";
 import { Octokit } from "@octokit/core";
 import crypto from "node:crypto";
@@ -31,7 +30,12 @@ app.use("/github/", createProxyMiddleware({
   target: "https://github.com",
   changeOrigin: true,
   followRedirects: true,
-  logger: console
+  logger: console,
+  on: {
+    proxyRes: (proxyRes) => {
+      proxyRes.headers["access-control-allow-origin"] = "*";
+    }
+  }
 }));
 
 // Static Content
