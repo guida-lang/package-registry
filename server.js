@@ -310,11 +310,12 @@ const registerUpload = upload.fields([
   { name: "github-hash", maxCount: 1 },
 ]);
 
-app.post("/register", registerUpload, async (req, res, next) => {
-  let commitHash, pkg, vsn;
+app.post("/register", registerUpload, async (req, res) => {
+  // let commitHash;
+  let pkg, vsn;
 
   if (req.query["commit-hash"]) {
-    commitHash = req.query["commit-hash"];
+    // commitHash = req.query["commit-hash"];
   } else {
     return res.status(400).send(`I need a \`commit-hash\` query parameter.`);
   }
@@ -438,7 +439,7 @@ const handleError = (callback) => {
 };
 
 const handlePackage = async (uplink, pkg) => {
-  const [author, project, version] = pkg.split(/[\/@]/);
+  const [author, project, version] = pkg.split(/[/@]/);
 
   const dirPath = `./packages/${uplink.id}/${author}`;
   const zipballPath = `${dirPath}/${project}-${version}.zip`;
