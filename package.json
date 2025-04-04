@@ -1,9 +1,10 @@
 {
   "type": "module",
   "scripts": {
-    "build": "npm-run-all --parallel build:*",
+    "build": "npm-run-all --sequential build:*",
     "build:elm": "./build.sh",
     "build:scss": "sass style.scss public/style.css --no-source-map --style compressed",
+    "test": "npm-run-all --sequential test:*",
     "test:elm-review": "elm-review",
     "elm-format": "elm-format . --yes",
     "start": "node server.js"

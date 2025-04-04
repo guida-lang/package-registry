@@ -1,4 +1,9 @@
-module Main exposing (main)
+module Main exposing
+    ( Model
+    , Msg
+    , Page
+    , main
+    )
 
 import Browser
 import Browser.Navigation as Nav
@@ -104,8 +109,7 @@ init year url key =
 
 
 type Msg
-    = NoOp
-    | LinkClicked Browser.UrlRequest
+    = LinkClicked Browser.UrlRequest
     | UrlChanged Url.Url
     | SearchMsg Search.Msg
     | DiffMsg Diff.Msg
@@ -116,9 +120,6 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update message model =
     case message of
-        NoOp ->
-            ( model, Cmd.none )
-
         LinkClicked urlRequest ->
             case urlRequest of
                 Browser.Internal url ->
@@ -225,9 +226,11 @@ exit model =
 stepUrl : Url.Url -> Model -> ( Model, Cmd Msg )
 stepUrl url model =
     let
+        session : Session.Data
         session =
             exit model
 
+        parser : Parser (( Model, Cmd Msg ) -> ( Model, Cmd Msg )) ( Model, Cmd Msg )
         parser =
             oneOf
                 [ route top

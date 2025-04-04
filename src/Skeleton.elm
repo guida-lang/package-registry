@@ -11,9 +11,9 @@ module Skeleton exposing
 import Browser
 import Elm.Version as V
 import Href
-import Html exposing (..)
-import Html.Attributes exposing (..)
-import Html.Lazy exposing (..)
+import Html exposing (Html)
+import Html.Attributes as Attr
+import Html.Lazy
 import Utils.Logo as Logo
 
 
@@ -25,7 +25,7 @@ type alias Details msg =
     { title : String
     , header : List Segment
     , warning : Warning
-    , attrs : List (Attribute msg)
+    , attrs : List (Html.Attribute msg)
     , kids : List (Html msg)
     , year : Int
     }
@@ -82,9 +82,9 @@ view toMsg details =
         details.title
     , body =
         [ viewHeader details.header
-        , lazy viewWarning details.warning
+        , Html.Lazy.lazy viewWarning details.warning
         , Html.map toMsg <|
-            div (class "center" :: style "flex" "1" :: details.attrs) details.kids
+            Html.div (Attr.class "center" :: Attr.style "flex" "1" :: details.attrs) details.kids
         , viewFooter details.year
         ]
     }
@@ -96,32 +96,32 @@ view toMsg details =
 
 viewHeader : List Segment -> Html msg
 viewHeader segments =
-    div [ class "header" ]
-        [ div [ class "nav" ]
+    Html.div [ Attr.class "header" ]
+        [ Html.div [ Attr.class "nav" ]
             [ viewLogo
             , case segments of
                 [] ->
-                    text ""
+                    Html.text ""
 
                 _ ->
-                    h1 [] (List.intersperse slash (List.map viewSegment segments))
+                    Html.h1 [] (List.intersperse slash (List.map viewSegment segments))
             ]
         ]
 
 
 slash : Html msg
 slash =
-    span [ class "spacey-char" ] [ text "/" ]
+    Html.span [ Attr.class "spacey-char" ] [ Html.text "/" ]
 
 
 viewSegment : Segment -> Html msg
 viewSegment segment =
     case segment of
         Text string ->
-            text string
+            Html.text string
 
         Link address string ->
-            a [ href address ] [ text string ]
+            Html.a [ Attr.href address ] [ Html.text string ]
 
 
 
@@ -130,30 +130,30 @@ viewSegment segment =
 
 viewWarning : Warning -> Html msg
 viewWarning warning =
-    div [ class "header-underbar" ] <|
+    Html.div [ Attr.class "header-underbar" ] <|
         case warning of
             NoProblems ->
                 []
 
             WarnOld ->
-                [ p [ class "version-warning" ]
-                    [ text "NOTE — this package is not compatible with Elm 0.19.1"
+                [ Html.p [ Attr.class "version-warning" ]
+                    [ Html.text "NOTE — this package is not compatible with Elm 0.19.1"
                     ]
                 ]
 
             WarnMoved author project ->
-                [ p [ class "version-warning" ]
-                    [ text "NOTE — this package moved to "
-                    , a [ href (Href.toVersion author project Nothing) ]
-                        [ text (author ++ "/" ++ project)
+                [ Html.p [ Attr.class "version-warning" ]
+                    [ Html.text "NOTE — this package moved to "
+                    , Html.a [ Attr.href (Href.toVersion author project Nothing) ]
+                        [ Html.text (author ++ "/" ++ project)
                         ]
                     ]
                 ]
 
             WarnNewerVersion url version ->
-                [ p [ class "version-warning" ]
-                    [ text "NOTE — the latest version is "
-                    , a [ href url ] [ text (V.toString version) ]
+                [ Html.p [ Attr.class "version-warning" ]
+                    [ Html.text "NOTE — the latest version is "
+                    , Html.a [ Attr.href url ] [ Html.text (V.toString version) ]
                     ]
                 ]
 
@@ -164,9 +164,14 @@ viewWarning warning =
 
 viewFooter : Int -> Html msg
 viewFooter year =
-    div [ class "footer" ]
-        [ a [ class "grey-link", href "https://github.com/guida-lang/package-registry/" ] [ text "Site Source" ]
-        , text (" — © " ++ String.fromInt year ++ " Décio Ferreira")
+    Html.div [ Attr.class "footer" ]
+        [ Html.a
+            [ Attr.class "grey-link"
+            , Attr.href "https://github.com/guida-lang/package-registry/"
+            ]
+            [ Html.text "Site Source"
+            ]
+        , Html.text (" — © " ++ String.fromInt year ++ " Décio Ferreira")
         ]
 
 
@@ -176,24 +181,24 @@ viewFooter year =
 
 viewLogo : Html msg
 viewLogo =
-    a
-        [ href "/"
-        , style "text-decoration" "none"
-        , style "margin-right" "32px"
-        , style "display" "flex"
-        , style "align-items" "center"
+    Html.a
+        [ Attr.href "/"
+        , Attr.style "text-decoration" "none"
+        , Attr.style "margin-right" "32px"
+        , Attr.style "display" "flex"
+        , Attr.style "align-items" "center"
         ]
         [ Logo.logo 40
-        , div
-            [ style "padding-left" "8px" ]
-            [ div
-                [ style "line-height" "24px"
-                , style "font-size" "26px"
+        , Html.div
+            [ Attr.style "padding-left" "8px" ]
+            [ Html.div
+                [ Attr.style "line-height" "24px"
+                , Attr.style "font-size" "26px"
                 ]
-                [ text "guida" ]
-            , div
-                [ style "font-size" "16px"
+                [ Html.text "guida" ]
+            , Html.div
+                [ Attr.style "font-size" "16px"
                 ]
-                [ text "packages" ]
+                [ Html.text "packages" ]
             ]
         ]

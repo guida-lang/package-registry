@@ -26,7 +26,7 @@ import Json.Decode as Decode
 import Page.Search.Entry as Entry
 import Release
 import Url.Builder as Url
-import Utils.OneOrMore exposing (OneOrMore(..))
+import Utils.OneOrMore exposing (OneOrMore)
 
 
 
@@ -78,11 +78,7 @@ getReleases data author project =
 
 addReleases : String -> String -> OneOrMore Release.Release -> Data -> Data
 addReleases author project releases data =
-    let
-        newReleases =
-            Dict.insert (toPkgKey author project) releases data.releases
-    in
-    { data | releases = newReleases }
+    { data | releases = Dict.insert (toPkgKey author project) releases data.releases }
 
 
 fetchReleases : String -> String -> Http.Request (OneOrMore Release.Release)
@@ -108,11 +104,7 @@ getReadme data author project version =
 
 addReadme : String -> String -> V.Version -> String -> Data -> Data
 addReadme author project version readme data =
-    let
-        newReadmes =
-            Dict.insert (toVsnKey author project version) readme data.readmes
-    in
-    { data | readmes = newReadmes }
+    { data | readmes = Dict.insert (toVsnKey author project version) readme data.readmes }
 
 
 fetchReadme : String -> String -> V.Version -> Http.Request String
@@ -132,11 +124,7 @@ getDocs data author project version =
 
 addDocs : String -> String -> V.Version -> List Docs.Module -> Data -> Data
 addDocs author project version docs data =
-    let
-        newDocs =
-            Dict.insert (toVsnKey author project version) docs data.docs
-    in
-    { data | docs = newDocs }
+    { data | docs = Dict.insert (toVsnKey author project version) docs data.docs }
 
 
 fetchDocs : String -> String -> V.Version -> Http.Request (List Docs.Module)
@@ -157,11 +145,7 @@ getOutline data author project version =
 
 addOutline : String -> String -> V.Version -> Outline.PackageInfo -> Data -> Data
 addOutline author project version outline data =
-    let
-        newOutlines =
-            Dict.insert (toVsnKey author project version) outline data.outlines
-    in
-    { data | outlines = newOutlines }
+    { data | outlines = Dict.insert (toVsnKey author project version) outline data.outlines }
 
 
 fetchOutline : String -> String -> V.Version -> Http.Request Outline.PackageInfo
