@@ -1,30 +1,23 @@
 module Utils.Logo exposing (logo)
 
 import Html
-import Svg exposing (..)
-import Svg.Attributes exposing (..)
+import Svg
+import Svg.Attributes as SvgAttr
 
 
 
--- ELM LOGO
+-- GUIDA LOGO
 
 
 logo : Int -> Html.Html msg
 logo n =
-    svg
-        [ height (String.fromInt n)
-        , viewBox "0 0 600 600"
+    Svg.svg
+        [ SvgAttr.height (String.fromInt n)
+        , SvgAttr.viewBox "0 0 52.917 52.917"
         ]
-        [ shape "0,20 280,300 0,580"
-        , shape "20,600 300,320 580,600"
-        , shape "320,0 600,0 600,280"
-        , shape "20,0 280,0 402,122 142,122"
-        , shape "170,150 430,150 300,280"
-        , shape "320,300 450,170 580,300 450,430"
-        , shape "470,450 600,320 600,580"
+        [ Svg.path
+            [ SvgAttr.fill "currentColor"
+            , SvgAttr.d "M26.458 37.248c-52.644 0 24.646 37.221-8.178-3.938s-13.734 42.475-2.02-8.849-41.771 15.746 5.66-7.096-38.355-22.841 9.077 0-6.056-44.228 5.659 7.096 30.803-32.31-2.02 8.85c-32.823 41.158 44.466 3.937-8.178 3.937z"
+            ]
+            []
         ]
-
-
-shape : String -> Svg msg
-shape coordinates =
-    polygon [ fill "currentColor", points coordinates ] []

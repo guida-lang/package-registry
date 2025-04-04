@@ -23,7 +23,6 @@ function download {
 	done
 
 	sed -i "" "s!https.*/\([a-zA-Z0-9_-]*\.woff2\)!/$DIR/\1!g" $CSS
-	gzip -9 $CSS
 }
 
 download "_hints_off" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:73.0) Gecko/20100101 Firefox/73.0"

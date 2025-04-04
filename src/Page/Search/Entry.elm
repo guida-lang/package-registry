@@ -29,17 +29,22 @@ type alias Entry =
 search : String -> List Entry -> List Entry
 search query entries =
     let
+        queryTerms : List String
         queryTerms =
             String.words (String.toLower query)
 
+        matchesAllTerms : Entry -> Bool
         matchesAllTerms entry =
             let
+                lowerName : String
                 lowerName =
                     String.toLower entry.name
 
+                lowerSummary : String
                 lowerSummary =
                     String.toLower entry.summary
 
+                matchesTerm : String -> Bool
                 matchesTerm term =
                     String.contains term lowerName
                         || String.contains term lowerSummary

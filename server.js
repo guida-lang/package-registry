@@ -1,15 +1,17 @@
 import express from "express";
+import cors from "cors";
 import multer from "multer";
 import fs from "node:fs";
 import sqlite3 from "sqlite3";
 import url from "node:url";
 import path from "node:path";
-import zlib from "node:zlib";
 import https from "node:https";
 import { Octokit } from "@octokit/core";
 import crypto from "node:crypto";
+import * as cron from "cron";
+import { createProxyMiddleware } from "http-proxy-middleware";
 
-const octokit = new Octokit({ auth: process.env.GITHUB_ACCESS_TOKEN });
+const octokit = new Octokit();
 const upload = multer();
 
 // https://flaviocopes.com/fix-dirname-not-defined-es-module-scope/
@@ -18,30 +20,51 @@ const __dirname = path.dirname(__filename);
 
 // Express Application
 const app = express();
+app.set("trust proxy", true);
+
+// CORS
+app.use(cors());
+
+// Proxy github
+app.use("/github/", createProxyMiddleware({
+  target: "https://github.com",
+  changeOrigin: true,
+  followRedirects: true,
+  logger: console,
+  on: {
+    proxyRes: (proxyRes) => {
+      proxyRes.headers["access-control-allow-origin"] = "*";
+    }
+  }
+}));
 
 // Static Content
 app.use("/assets", express.static("public"));
+app.use("/public/fonts", express.static("public/fonts"));
 app.use("/artifacts", express.static("artifacts"));
 
 // Fonts
 app.get("/assets/fonts.css", async (request, response) => {
   const hints = request.get("User-Agent").includes("Macintosh") ? "off" : "on";
   const content = fs.readFileSync(
-    path.join(__dirname, `public/fonts/_hints_${hints}.css.gz`)
+    path.join(__dirname, `public/fonts/_hints_${hints}.css`)
   );
 
   response.set("Content-Type", "text/css");
-  response.send(zlib.deflateSync(content).toString("base64"));
+  response.send(content);
 });
 
 // Database
 process.env.DATABASE_URL ||= url
-  .pathToFileURL("database/production.sqlite3")
+  .pathToFileURL("database/development.sqlite3")
   .toString();
 
 sqlite3.verbose();
 
 const db = new sqlite3.Database(new URL(process.env.DATABASE_URL).pathname);
+
+// Caching
+const ENABLE_CACHE = (process.env.ENABLE_CACHE === "true");
 
 // Routes
 const makeHtml = function (title) {
@@ -53,18 +76,18 @@ const makeHtml = function (title) {
   <title>${title}</title>
   <link rel="stylesheet" href="/assets/fonts.css">
   <link rel="stylesheet" href="/assets/style.css">
-  <script src="/artifacts/elm.js"></script>
+  <script src="/artifacts/elm.min.js"></script>
   <script src="/assets/highlight/highlight.pack.js"></script>
   <link rel="stylesheet" href="/assets/highlight/styles/default.css">
 </head>
 <body>
-<script>Elm.Main.init()</script>
+<script>Elm.Main.init({ flags: new Date().getFullYear() })</script>
 </body>
 </html>`;
 };
 
 app.get("/", async (_req, res) => {
-  res.send(makeHtml("Elm Packages"));
+  res.send(makeHtml("Guida Packages"));
 });
 
 app.get("/packages", async (_req, res) => {
@@ -207,7 +230,11 @@ app.get(
           next(err);
         } else {
           res.send({
-            url: `https://github.com/${req.params.author}/${req.params.project}/zipball/${req.params.version}/`,
+            url: url.format({
+              protocol: req.protocol,
+              host: req.get("host"),
+              pathname: `/github/${req.params.author}/${req.params.project}/zipball/${req.params.version}/`
+            }),
             hash: row.hash,
           });
         }
@@ -219,8 +246,7 @@ app.get(
 app.get("/packages/:author/:project/:version/:path*", async (req, res) => {
   res.send(
     makeHtml(
-      `${req.params.path.replaceAll("-", ".")} - ${req.params.author}/${
-        req.params.project
+      `${req.params.path.replaceAll("-", ".")} - ${req.params.author}/${req.params.project
       } ${req.params.version}`
     )
   );
@@ -284,11 +310,12 @@ const registerUpload = upload.fields([
   { name: "github-hash", maxCount: 1 },
 ]);
 
-app.post("/register", registerUpload, async (req, res, next) => {
-  let commitHash, pkg, vsn;
+app.post("/register", registerUpload, async (req, res) => {
+  // let commitHash;
+  let pkg, vsn;
 
   if (req.query["commit-hash"]) {
-    commitHash = req.query["commit-hash"];
+    // commitHash = req.query["commit-hash"];
   } else {
     return res.status(400).send(`I need a \`commit-hash\` query parameter.`);
   }
@@ -332,13 +359,15 @@ app.post("/register", registerUpload, async (req, res, next) => {
   let hash;
 
   if (zipball) {
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
-    }
-
     const buffer = Buffer.from(zipball.data);
 
-    fs.appendFileSync(zipballPath, buffer);
+    if (ENABLE_CACHE) {
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+
+      fs.appendFileSync(zipballPath, buffer);
+    }
 
     hash = crypto.createHash("sha1").update(buffer).digest("hex");
   }
@@ -410,7 +439,7 @@ const handleError = (callback) => {
 };
 
 const handlePackage = async (uplink, pkg) => {
-  const [author, project, version] = pkg.split(/[\/@]/);
+  const [author, project, version] = pkg.split(/[/@]/);
 
   const dirPath = `./packages/${uplink.id}/${author}`;
   const zipballPath = `${dirPath}/${project}-${version}.zip`;
@@ -435,13 +464,15 @@ const handlePackage = async (uplink, pkg) => {
   let hash;
 
   if (zipball) {
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
-    }
-
     const buffer = Buffer.from(zipball.data);
 
-    fs.appendFileSync(zipballPath, buffer);
+    if (ENABLE_CACHE) {
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+
+      fs.appendFileSync(zipballPath, buffer);
+    }
 
     hash = crypto.createHash("sha1").update(buffer).digest("hex");
   }
@@ -541,13 +572,15 @@ const handlePackage = async (uplink, pkg) => {
 
         db.run("COMMIT", (err) => {
           if (err) {
+            console.error(`Failed to add ${author}/${project}@${version}`, err);
             rejectAll(err);
           } else {
+            console.log(`Successfully added ${author}/${project}@${version}`);
             resolveAll();
           }
         });
       });
-    });
+    })
   });
 };
 
@@ -555,39 +588,74 @@ const handleAllPackages = async (uplink, allPackages) => {
   for (const pkg of allPackages) {
     await handlePackage(uplink, pkg);
   }
+
+  console.log(`Finished processing ${allPackages.length} for ${uplink.url}...`);
 };
 
 // Database Setup
 db.exec(fs.readFileSync(path.join(__dirname, "database/init.sql")).toString());
 
-db.each(
-  "SELECT * FROM uplinks",
-  handleError((uplink) => {
-    https
-      .get(`${uplink.url}/all-packages/since/${uplink.last_index}`, (res) => {
-        let allPackagesRawData = "";
+// Cron job
+let cronTime = "0 0 * * * *";
 
-        res.on("data", (chunk) => {
-          allPackagesRawData += chunk;
-        });
+if (process.env.CRON_TIME) {
+  const cronValidation = cron.validateCronExpression(process.env.CRON_TIME);
+  if (cronValidation.valid) {
+    cronTime = process.env.CRON_TIME;
+  }
+}
 
-        res.on("end", () => {
-          try {
-            const allPackages = JSON.parse(allPackagesRawData);
+console.log(`CronJob time: "${cronTime}"`);
 
-            if (allPackages.length > 0) {
-              handleAllPackages(uplink, allPackages.reverse());
-            }
-          } catch (e) {
-            console.error(e);
-          }
-        });
-      })
-      .on("error", (e) => {
-        console.error(e);
-      });
-  })
-);
+cron.CronJob.from({
+  cronTime,
+  onTick: async () => {
+    return new Promise((resolveAll, rejectAll) => {
+      db.all(
+        "SELECT * FROM uplinks",
+        handleError((uplinks) => {
+          Promise.all(uplinks.map((uplink) => {
+            return new Promise((resolve, reject) => {
+              https.get(`${uplink.url}/all-packages/since/${uplink.last_index}`, (res) => {
+                let allPackagesRawData = "";
+
+                res.on("data", (chunk) => {
+                  allPackagesRawData += chunk;
+                });
+
+                res.on("end", async () => {
+                  try {
+                    const allPackages = JSON.parse(allPackagesRawData);
+
+                    if (allPackages.length > 0) {
+                      await handleAllPackages(uplink, allPackages.reverse());
+
+                    } else {
+                      console.log(`No more packages found for ${uplink.url}...`);
+                    }
+
+                    resolve();
+                  } catch (e) {
+                    reject(e);
+                  }
+                });
+              }).on("error", (e) => {
+                reject(e);
+              });
+            });
+          })).then(() => {
+            resolveAll();
+          }).catch((error) => {
+            rejectAll(error);
+          });
+        })
+      );
+    });
+  },
+  start: true,
+  runOnInit: true,
+  waitForCompletion: true
+});
 
 // Start Web Server
 process.env.PORT ||= 3000;

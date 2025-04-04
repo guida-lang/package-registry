@@ -2,8 +2,8 @@ module Page.Docs exposing
     ( Focus(..)
     , Model
     , Msg
+    , Status
     , init
-    , toTitle
     , update
     , view
     )
@@ -17,10 +17,10 @@ import Elm.Package as Pkg
 import Elm.Project as Outline
 import Elm.Version as V
 import Href
-import Html exposing (..)
-import Html.Attributes exposing (..)
-import Html.Events exposing (..)
-import Html.Lazy exposing (..)
+import Html exposing (Html)
+import Html.Attributes as Attr
+import Html.Events as Events
+import Html.Lazy
 import Http
 import Page.Docs.Block as Block
 import Page.Problem as Problem
@@ -84,15 +84,19 @@ init session author project version focus =
 getInfo : V.Version -> Model -> ( Model, Cmd Msg )
 getInfo latest model =
     let
+        author : String
         author =
             model.author
 
+        project : String
         project =
             model.project
 
+        version : V.Version
         version =
             Maybe.withDefault latest model.version
 
+        maybeInfo : Maybe ( String, List Docs.Module, Outline.PackageInfo )
         maybeInfo =
             Maybe.map3 (\a b c -> ( a, b, c ))
                 (Session.getReadme model.session author project version)
@@ -123,7 +127,7 @@ scrollIfNeeded : Focus -> Cmd Msg
 scrollIfNeeded focus =
     case focus of
         Module _ (Just tag) ->
-            Task.attempt ScrollAttempted
+            Task.attempt (\_ -> ScrollAttempted)
                 (Dom.getElement tag
                     |> Task.andThen (\info -> Dom.setViewport 0 info.element.y)
                 )
@@ -138,7 +142,7 @@ scrollIfNeeded focus =
 
 type Msg
     = QueryChanged String
-    | ScrollAttempted (Result Dom.Error ())
+    | ScrollAttempted
     | GotReleases (Result Http.Error (OneOrMore Release.Release))
     | GotReadme V.Version (Result Http.Error String)
     | GotDocs V.Version (Result Http.Error (List Docs.Module))
@@ -153,10 +157,8 @@ update msg model =
             , Cmd.none
             )
 
-        ScrollAttempted _ ->
-            ( model
-            , Cmd.none
-            )
+        ScrollAttempted ->
+            ( model, Cmd.none )
 
         GotReleases result ->
             case result of
@@ -237,6 +239,7 @@ view model =
         [ viewContent model
         , viewSidebar model
         ]
+    , year = model.session.year
     }
 
 
@@ -339,6 +342,7 @@ warnIfNewer model =
 
                 Success releases ->
                     let
+                        latest : V.Version
                         latest =
                             Release.getLatestVersion releases
                     in
@@ -430,13 +434,13 @@ viewContent : Model -> Html msg
 viewContent model =
     case model.focus of
         Readme ->
-            lazy viewReadme model.readme
+            Html.Lazy.lazy viewReadme model.readme
 
         About ->
-            lazy2 viewAbout model.outline model.releases
+            Html.Lazy.lazy2 viewAbout model.outline model.releases
 
         Module name _ ->
-            lazy5 viewModule model.author model.project model.version name model.docs
+            Html.Lazy.lazy5 viewModule model.author model.project model.version name model.docs
 
 
 
@@ -447,15 +451,15 @@ viewReadme : Status String -> Html msg
 viewReadme status =
     case status of
         Success readme ->
-            div [ class "block-list" ] [ Markdown.block readme ]
+            Html.div [ Attr.class "block-list" ] [ Markdown.block readme ]
 
         Loading ->
-            div [ class "block-list" ] [ text "" ]
+            Html.div [ Attr.class "block-list" ] [ Html.text "" ]
 
         -- TODO
         Failure ->
-            div
-                (class "block-list" :: Problem.styles)
+            Html.div
+                (Attr.class "block-list" :: Problem.styles)
                 (Problem.offline "README.md")
 
 
@@ -470,30 +474,33 @@ viewModule author project version name status =
             case findModule name allDocs of
                 Just docs ->
                     let
+                        header : Html msg
                         header =
-                            h1 [ class "block-list-title" ] [ text name ]
+                            Html.h1 [ Attr.class "block-list-title" ] [ Html.text name ]
 
+                        info : Block.Info
                         info =
                             Block.makeInfo author project version name allDocs
 
+                        blocks : List (Html msg)
                         blocks =
                             List.map (Block.view info) (Docs.toBlocks docs)
                     in
-                    div [ class "block-list" ] (header :: blocks)
+                    Html.div [ Attr.class "block-list" ] (header :: blocks)
 
                 Nothing ->
-                    div
-                        (class "block-list" :: Problem.styles)
+                    Html.div
+                        (Attr.class "block-list" :: Problem.styles)
                         (Problem.missingModule author project version name)
 
         Loading ->
-            div [ class "block-list" ]
-                [ h1 [ class "block-list-title" ] [ text name ] -- TODO better loading
+            Html.div [ Attr.class "block-list" ]
+                [ Html.h1 [ Attr.class "block-list-title" ] [ Html.text name ] -- TODO better loading
                 ]
 
         Failure ->
-            div
-                (class "block-list" :: Problem.styles)
+            Html.div
+                (Attr.class "block-list" :: Problem.styles)
                 (Problem.offline "docs.json")
 
 
@@ -517,19 +524,19 @@ findModule name docsList =
 
 viewSidebar : Model -> Html Msg
 viewSidebar model =
-    div
-        [ class "pkg-nav"
+    Html.div
+        [ Attr.class "pkg-nav"
         ]
-        [ ul []
-            [ li [] [ lazy4 viewReadmeLink model.author model.project model.version model.focus ]
-            , li [] [ lazy4 viewAboutLink model.author model.project model.version model.focus ]
-            , li [] [ lazy4 viewBrowseSourceLink model.author model.project model.version model.releases ]
+        [ Html.ul []
+            [ Html.li [] [ Html.Lazy.lazy4 viewReadmeLink model.author model.project model.version model.focus ]
+            , Html.li [] [ Html.Lazy.lazy4 viewAboutLink model.author model.project model.version model.focus ]
+            , Html.li [] [ Html.Lazy.lazy4 viewBrowseSourceLink model.author model.project model.version model.releases ]
             ]
-        , h2 [] [ text "Modules" ]
-        , input
-            [ placeholder "Search"
-            , value model.query
-            , onInput QueryChanged
+        , Html.h2 [] [ Html.text "Modules" ]
+        , Html.input
+            [ Attr.placeholder "Search"
+            , Attr.value model.query
+            , Events.onInput QueryChanged
             ]
             []
         , viewSidebarModules model
@@ -540,35 +547,39 @@ viewSidebarModules : Model -> Html msg
 viewSidebarModules model =
     case model.docs of
         Failure ->
-            text ""
+            Html.text ""
 
         -- TODO
         Loading ->
-            text ""
+            Html.text ""
 
         -- TODO
         Success modules ->
             if String.isEmpty model.query then
                 let
+                    viewEntry : Docs.Module -> Html msg
                     viewEntry docs =
-                        li [] [ viewModuleLink model docs.name ]
+                        Html.li [] [ viewModuleLink model docs.name ]
                 in
-                ul [] (List.map viewEntry modules)
+                Html.ul [] (List.map viewEntry modules)
 
             else
                 let
+                    query : String
                     query =
                         String.toLower model.query
                 in
-                ul [] (List.filterMap (viewSearchItem model query) modules)
+                Html.ul [] (List.filterMap (viewSearchItem model query) modules)
 
 
 viewSearchItem : Model -> String -> Docs.Module -> Maybe (Html msg)
 viewSearchItem model query docs =
     let
+        toItem : String -> String -> Html msg
         toItem ownerName valueName =
             viewValueItem model docs.name ownerName valueName
 
+        matches : List (Html msg)
         matches =
             List.filterMap (isMatch query toItem) docs.binops
                 ++ List.concatMap (isUnionMatch query toItem) docs.unions
@@ -580,11 +591,11 @@ viewSearchItem model query docs =
 
     else
         Just <|
-            li
-                [ class "pkg-nav-search-chunk"
+            Html.li
+                [ Attr.class "pkg-nav-search-chunk"
                 ]
                 [ viewModuleLink model docs.name
-                , ul [] matches
+                , Html.ul [] matches
                 ]
 
 
@@ -600,6 +611,7 @@ isMatch query toResult { name } =
 isUnionMatch : String -> (String -> String -> a) -> Docs.Union -> List a
 isUnionMatch query toResult { name, tags } =
     let
+        tagMatches : List a
         tagMatches =
             List.filterMap (isTagMatch query toResult name) tags
     in
@@ -671,22 +683,23 @@ viewBrowseSourceLink author project maybeVersion releasesStatus =
                     viewBrowseSourceLinkHelp author project (Release.getLatestVersion releases)
 
                 Loading ->
-                    text "Source"
+                    Html.text "Source"
 
                 Failure ->
-                    text "Source"
+                    Html.text "Source"
 
 
 viewBrowseSourceLinkHelp : String -> String -> V.Version -> Html msg
 viewBrowseSourceLinkHelp author project version =
     let
+        url : String
         url =
             Url.crossOrigin
                 "https://github.com"
                 [ author, project, "tree", V.toString version ]
                 []
     in
-    a [ class "pkg-nav-module", href url ] [ text "Source" ]
+    Html.a [ Attr.class "pkg-nav-module", Attr.href url ] [ Html.text "Source" ]
 
 
 
@@ -696,6 +709,7 @@ viewBrowseSourceLinkHelp author project version =
 viewModuleLink : Model -> String -> Html msg
 viewModuleLink model name =
     let
+        url : String
         url =
             Href.toModule model.author model.project model.version name Nothing
     in
@@ -714,10 +728,11 @@ viewModuleLink model name =
 viewValueItem : Model -> String -> String -> String -> Html msg
 viewValueItem { author, project, version } moduleName ownerName valueName =
     let
+        url : String
         url =
             Href.toModule author project version moduleName (Just ownerName)
     in
-    li [ class "pkg-nav-value" ] [ navLink valueName url False ]
+    Html.li [ Attr.class "pkg-nav-value" ] [ navLink valueName url False ]
 
 
 
@@ -728,39 +743,39 @@ viewAbout : Status Outline.PackageInfo -> Status (OneOrMore Release.Release) -> 
 viewAbout outlineStatus releases =
     case outlineStatus of
         Success outline ->
-            div [ class "block-list pkg-about" ]
-                [ h1 [ class "block-list-title" ] [ text "About" ]
-                , p [] [ text outline.summary ]
-                , pre [] [ code [] [ text ("elm install " ++ Pkg.toString outline.name) ] ]
-                , p []
-                    [ text "Published "
+            Html.div [ Attr.class "block-list pkg-about" ]
+                [ Html.h1 [ Attr.class "block-list-title" ] [ Html.text "About" ]
+                , Html.p [] [ Html.text outline.summary ]
+                , Html.pre [] [ Html.code [] [ Html.text ("elm install " ++ Pkg.toString outline.name) ] ]
+                , Html.p []
+                    [ Html.text "Published "
                     , viewReleaseTime outline releases
-                    , text " under the "
-                    , a [ href (toLicenseUrl outline) ] [ code [] [ text (License.toString outline.license) ] ]
-                    , text " license."
+                    , Html.text " under the "
+                    , Html.a [ Attr.href (toLicenseUrl outline) ] [ Html.code [] [ Html.text (License.toString outline.license) ] ]
+                    , Html.text " license."
                     ]
-                , p []
-                    [ text "Elm version "
-                    , code [] [ text (C.toString outline.elm) ]
+                , Html.p []
+                    [ Html.text "Elm version "
+                    , Html.code [] [ Html.text (C.toString outline.elm) ]
                     ]
                 , case outline.deps of
                     [] ->
-                        text ""
+                        Html.text ""
 
                     _ :: _ ->
-                        div []
-                            [ h1 [ style "margin-top" "2em", style "margin-bottom" "0.5em" ] [ text "Dependencies" ]
-                            , table [] (List.map viewDependency outline.deps)
+                        Html.div []
+                            [ Html.h1 [ Attr.style "margin-top" "2em", Attr.style "margin-bottom" "0.5em" ] [ Html.text "Dependencies" ]
+                            , Html.table [] (List.map viewDependency outline.deps)
                             ]
                 ]
 
         Loading ->
-            div [ class "block-list pkg-about" ] [ text "" ]
+            Html.div [ Attr.class "block-list pkg-about" ] [ Html.text "" ]
 
         -- TODO
         Failure ->
-            div
-                (class "block-list pkg-about" :: Problem.styles)
+            Html.div
+                (Attr.class "block-list pkg-about" :: Problem.styles)
                 (Problem.offline "elm.json")
 
 
@@ -768,18 +783,18 @@ viewReleaseTime : Outline.PackageInfo -> Status (OneOrMore Release.Release) -> H
 viewReleaseTime outline releasesStatus =
     case releasesStatus of
         Failure ->
-            text ""
+            Html.text ""
 
         Loading ->
-            text ""
+            Html.text ""
 
         Success releases ->
             case Release.getTime outline.version releases of
                 Nothing ->
-                    text ""
+                    Html.text ""
 
                 Just time ->
-                    span [] [ text "on ", code [] [ text (timeToString time) ] ]
+                    Html.span [] [ Html.text "on ", Html.code [] [ Html.text (timeToString time) ] ]
 
 
 timeToString : Time.Posix -> String
@@ -841,19 +856,19 @@ toLicenseUrl outline =
 
 viewDependency : ( Pkg.Name, C.Constraint ) -> Html msg
 viewDependency ( pkg, constraint ) =
-    tr []
-        [ td []
+    Html.tr []
+        [ Html.td []
             [ case String.split "/" (Pkg.toString pkg) of
                 [ author, project ] ->
-                    a [ href (Href.toVersion author project Nothing) ]
-                        [ span [ class "light" ] [ text (author ++ "/") ]
-                        , text project
+                    Html.a [ Attr.href (Href.toVersion author project Nothing) ]
+                        [ Html.span [ Attr.class "light" ] [ Html.text (author ++ "/") ]
+                        , Html.text project
                         ]
 
                 _ ->
-                    text (Pkg.toString pkg)
+                    Html.text (Pkg.toString pkg)
             ]
-        , td [] [ code [] [ text (C.toString constraint) ] ]
+        , Html.td [] [ Html.code [] [ Html.text (C.toString constraint) ] ]
         ]
 
 
@@ -864,15 +879,16 @@ viewDependency ( pkg, constraint ) =
 navLink : String -> String -> Bool -> Html msg
 navLink name url isBold =
     let
+        attributes : List (Html.Attribute msg)
         attributes =
             if isBold then
-                [ class "pkg-nav-module"
-                , style "font-weight" "bold"
-                , style "text-decoration" "underline"
+                [ Attr.class "pkg-nav-module"
+                , Attr.style "font-weight" "bold"
+                , Attr.style "text-decoration" "underline"
                 ]
 
             else
-                [ class "pkg-nav-module"
+                [ Attr.class "pkg-nav-module"
                 ]
     in
-    a (href url :: attributes) [ text name ]
+    Html.a (Attr.href url :: attributes) [ Html.text name ]

@@ -1,4 +1,9 @@
-module Main exposing (..)
+module Main exposing
+    ( Model
+    , Msg
+    , Page
+    , main
+    )
 
 import Browser
 import Browser.Navigation as Nav
@@ -18,7 +23,7 @@ import Url.Parser as Parser exposing ((</>), Parser, custom, fragment, map, oneO
 -- MAIN
 
 
-main : Program () Model Msg
+main : Program Int Model Msg
 main =
     Browser.application
         { init = init
@@ -64,13 +69,14 @@ subscriptions _ =
 view : Model -> Browser.Document Msg
 view model =
     case model.page of
-        NotFound _ ->
+        NotFound session ->
             Skeleton.view never
                 { title = "Not Found"
                 , header = []
                 , warning = Skeleton.NoProblems
                 , attrs = Problem.styles
                 , kids = Problem.notFound
+                , year = session.year
                 }
 
         Search search ->
@@ -90,11 +96,11 @@ view model =
 -- INIT
 
 
-init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
-init _ url key =
+init : Int -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
+init year url key =
     stepUrl url
         { key = key
-        , page = NotFound Session.empty
+        , page = NotFound (Session.empty year)
         }
 
 
@@ -103,8 +109,7 @@ init _ url key =
 
 
 type Msg
-    = NoOp
-    | LinkClicked Browser.UrlRequest
+    = LinkClicked Browser.UrlRequest
     | UrlChanged Url.Url
     | SearchMsg Search.Msg
     | DiffMsg Diff.Msg
@@ -115,9 +120,6 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update message model =
     case message of
-        NoOp ->
-            ( model, Cmd.none )
-
         LinkClicked urlRequest ->
             case urlRequest of
                 Browser.Internal url ->
@@ -224,9 +226,11 @@ exit model =
 stepUrl : Url.Url -> Model -> ( Model, Cmd Msg )
 stepUrl url model =
     let
+        session : Session.Data
         session =
             exit model
 
+        parser : Parser (( Model, Cmd Msg ) -> ( Model, Cmd Msg )) ( Model, Cmd Msg )
         parser =
             oneOf
                 [ route top

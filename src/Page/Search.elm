@@ -1,5 +1,6 @@
 module Page.Search exposing
-    ( Model
+    ( Entries
+    , Model
     , Msg
     , init
     , update
@@ -8,11 +9,11 @@ module Page.Search exposing
 
 import Elm.Version as V
 import Href
-import Html exposing (..)
+import Html exposing (Html)
 import Html.Attributes exposing (autofocus, class, href, placeholder, style, value)
-import Html.Events exposing (..)
+import Html.Events as Events
 import Html.Keyed as Keyed
-import Html.Lazy exposing (..)
+import Html.Lazy
 import Http
 import Json.Decode as Decode
 import Page.Problem as Problem
@@ -97,9 +98,10 @@ view model =
     , warning = Skeleton.NoProblems
     , attrs = []
     , kids =
-        [ lazy2 viewSearch model.query model.entries
+        [ Html.Lazy.lazy2 viewSearch model.query model.entries
         , viewSidebar
         ]
+    , year = model.session.year
     }
 
 
@@ -109,37 +111,38 @@ view model =
 
 viewSearch : String -> Entries -> Html Msg
 viewSearch query entries =
-    div [ class "catalog" ]
-        [ input
+    Html.div [ class "catalog" ]
+        [ Html.input
             [ placeholder "Search"
             , value query
-            , onInput QueryChanged
+            , Events.onInput QueryChanged
             , autofocus True
             ]
             []
         , case entries of
             Failure ->
-                div Problem.styles (Problem.offline "search.json")
+                Html.div Problem.styles (Problem.offline "search.json")
 
             Loading ->
-                text ""
+                Html.text ""
 
             -- TODO
             Success es ->
                 let
+                    results : List ( String, Html msg )
                     results =
                         List.map viewEntry (Entry.search query es)
                 in
-                div []
+                Html.div []
                     [ Keyed.node "div" [] <|
                         ( "h", viewHint (List.isEmpty results) query )
                             :: results
-                    , p [ class "pkg-hint" ]
-                        [ text "Need 0.18 packages? For "
-                        , a [ href "https://gist.github.com/evancz/9031e37902dfaec250a08a7aa6e17b10" ] [ text "technical reasons" ]
-                        , text ", search "
-                        , a [ href "https://dmy.github.io/elm-0.18-packages/" ] [ text "here" ]
-                        , text " instead!"
+                    , Html.p [ class "pkg-hint" ]
+                        [ Html.text "Need 0.18 packages? For "
+                        , Html.a [ href "https://gist.github.com/evancz/9031e37902dfaec250a08a7aa6e17b10" ] [ Html.text "technical reasons" ]
+                        , Html.text ", search "
+                        , Html.a [ href "https://dmy.github.io/elm-0.18-packages/" ] [ Html.text "here" ]
+                        , Html.text " instead!"
                         ]
                     ]
         ]
@@ -152,46 +155,49 @@ viewSearch query entries =
 viewEntry : Entry.Entry -> ( String, Html msg )
 viewEntry entry =
     ( entry.author ++ "/" ++ entry.project
-    , lazy viewEntryHelp entry
+    , Html.Lazy.lazy viewEntryHelp entry
     )
 
 
 viewEntryHelp : Entry.Entry -> Html msg
 viewEntryHelp ({ author, project, summary } as entry) =
-    div [ class "pkg-summary" ]
-        [ div []
-            [ h1 []
-                [ a [ href (Href.toVersion author project Nothing) ]
-                    [ span [ class "light" ] [ text (author ++ "/") ]
-                    , text project
+    Html.div [ class "pkg-summary" ]
+        [ Html.div []
+            [ Html.h1 []
+                [ Html.a [ href (Href.toVersion author project Nothing) ]
+                    [ Html.span [ class "light" ] [ Html.text (author ++ "/") ]
+                    , Html.text project
                     ]
                 ]
             , viewExactVersions entry
             ]
-        , p [ class "pkg-summary-desc" ] [ text summary ]
+        , Html.p [ class "pkg-summary-desc" ] [ Html.text summary ]
         ]
 
 
 viewExactVersions : Entry.Entry -> Html msg
 viewExactVersions entry =
     let
+        latestUrl : String
         latestUrl =
             Href.toVersion entry.author entry.project (Just entry.version)
 
+        latestName : String
         latestName =
             V.toString entry.version
 
+        latestLink : Html msg
         latestLink =
-            a [ href latestUrl ] [ text latestName ]
+            Html.a [ href latestUrl ] [ Html.text latestName ]
     in
-    span [ class "pkg-summary-hints" ] <|
+    Html.span [ class "pkg-summary-hints" ] <|
         if V.toTuple entry.version == ( 1, 0, 0 ) then
             [ latestLink
             ]
 
         else
-            [ a [ href (Href.toProject entry.author entry.project) ] [ text "…" ]
-            , text " "
+            [ Html.a [ href (Href.toProject entry.author entry.project) ] [ Html.text "…" ]
+            , Html.text " "
             , latestLink
             ]
 
@@ -202,29 +208,29 @@ viewExactVersions entry =
 
 viewSidebar : Html msg
 viewSidebar =
-    div [ class "catalog-sidebar" ]
-        [ h2 [] [ text "Popular Packages" ]
-        , ul [] <|
+    Html.div [ class "catalog-sidebar" ]
+        [ Html.h2 [] [ Html.text "Popular Packages" ]
+        , Html.ul [] <|
             List.map viewPopularPackage [ "core", "html", "json", "browser", "url", "http" ]
-        , h2 [] [ text "Resources" ]
-        , ul []
-            [ li [] [ a [ href "https://klaftertief.github.io/elm-search/" ] [ text "Search by Type" ] ]
-            , li [] [ a [ href "https://github.com/elm-lang/elm-package/blob/master/README.md" ] [ text "Using Packages" ] ]
-            , li [] [ a [ href "/help/design-guidelines" ] [ text "API Design Guidelines" ] ]
-            , li [] [ a [ href "/help/documentation-format" ] [ text "Write great docs" ] ]
-            , li [] [ a [ href "https://elm-lang.org" ] [ text "Elm Website" ] ]
+        , Html.h2 [] [ Html.text "Resources" ]
+        , Html.ul []
+            [ Html.li [] [ Html.a [ href "https://klaftertief.github.io/elm-search/" ] [ Html.text "Search by Type" ] ]
+            , Html.li [] [ Html.a [ href "https://github.com/elm-lang/elm-package/blob/master/README.md" ] [ Html.text "Using Packages" ] ]
+            , Html.li [] [ Html.a [ href "/help/design-guidelines" ] [ Html.text "API Design Guidelines" ] ]
+            , Html.li [] [ Html.a [ href "/help/documentation-format" ] [ Html.text "Write great docs" ] ]
+            , Html.li [] [ Html.a [ href "https://guida-lang.org" ] [ Html.text "Guida Website" ] ]
             ]
         ]
 
 
 viewPopularPackage : String -> Html msg
 viewPopularPackage project =
-    li []
-        [ a
+    Html.li []
+        [ Html.a
             [ href (Href.toVersion "elm" project Nothing)
             ]
-            [ span [ class "light" ] [ text "elm/" ]
-            , text project
+            [ Html.span [ class "light" ] [ Html.text "elm/" ]
+            , Html.text project
             ]
         ]
 
@@ -242,7 +248,7 @@ viewHintHelp : Bool -> String -> List (Hint msg) -> Html msg
 viewHintHelp noAlts query remainingHints =
     case remainingHints of
         [] ->
-            text ""
+            Html.text ""
 
         hint :: otherHints ->
             if String.startsWith query hint.term && (noAlts || String.length query >= hint.min) then
@@ -288,154 +294,154 @@ hints =
 
 makeHint : List (Html msg) -> Html msg
 makeHint message =
-    p [ class "pkg-hint" ] <|
-        b [] [ text "Hint:" ]
-            :: text " "
+    Html.p [ class "pkg-hint" ] <|
+        Html.b [] [ Html.text "Hint:" ]
+            :: Html.text " "
             :: message
 
 
 singlePageApp : Html msg
 singlePageApp =
     makeHint
-        [ text "All single-page apps in Elm use "
+        [ Html.text "All single-page apps in Elm use "
         , codeLink (Href.toVersion "elm" "browser" Nothing) "elm/browser"
-        , text " to control the URL, with help from "
+        , Html.text " to control the URL, with help from "
         , codeLink (Href.toVersion "elm" "url" Nothing) "elm/url"
-        , text " convert between URLs and nice structured data. I very highly recommend working through "
+        , Html.text " convert between URLs and nice structured data. I very highly recommend working through "
         , guide
-        , text " to learn how! Once you have made one or two single-page apps the standard way, it will be much easier to tell which (if any) of the packages below can make your code any easier."
+        , Html.text " to learn how! Once you have made one or two single-page apps the standard way, it will be much easier to tell which (if any) of the packages below can make your code any easier."
         ]
 
 
 components : Html msg
 components =
     makeHint
-        [ text "Components are objects!"
-        , ul [ style "list-style-type" "none" ]
-            [ li [] [ text "Components = Local State + Methods" ]
-            , li [] [ text "Local State + Methods = Objects" ]
+        [ Html.text "Components are objects!"
+        , Html.ul [ style "list-style-type" "none" ]
+            [ Html.li [] [ Html.text "Components = Local State + Methods" ]
+            , Html.li [] [ Html.text "Local State + Methods = Objects" ]
             ]
-        , text "We get very few folks asking how to structure Elm code with objects. Elm does not have objects! We get a lot of folks asking about how to use components, but it is essentially the same question. Elm emphasizes "
-        , i [] [ text "functions" ]
-        , text " instead. Folks usually have the best experience if they follow the advice in "
+        , Html.text "We get very few folks asking how to structure Elm code with objects. Elm does not have objects! We get a lot of folks asking about how to use components, but it is essentially the same question. Elm emphasizes "
+        , Html.i [] [ Html.text "functions" ]
+        , Html.text " instead. Folks usually have the best experience if they follow the advice in "
         , guide
-        , text " and "
-        , a [ href "https://youtu.be/XpDsk374LDE" ] [ text "The Life of a File" ]
-        , text ", exploring and understanding the techniques specific to Elm "
-        , i [] [ text "before" ]
-        , text " trying to bring in techniques from other languages."
+        , Html.text " and "
+        , Html.a [ href "https://youtu.be/XpDsk374LDE" ] [ Html.text "The Life of a File" ]
+        , Html.text ", exploring and understanding the techniques specific to Elm "
+        , Html.i [] [ Html.text "before" ]
+        , Html.text " trying to bring in techniques from other languages."
         ]
 
 
 router : Html msg
 router =
     makeHint
-        [ text "The "
+        [ Html.text "The "
         , codeLink (Href.toVersion "elm" "url" Nothing) "elm/url"
-        , text " package has everything you need to turn paths, queries, and hashes into useful data. But definitely work through "
+        , Html.text " package has everything you need to turn paths, queries, and hashes into useful data. But definitely work through "
         , guide
-        , text " to learn how this fits into a "
+        , Html.text " to learn how this fits into a "
         , codeLink (Href.toModule "elm" "browser" Nothing "Browser" (Just "application")) "Browser.application"
-        , text " that manages the URL!"
+        , Html.text " that manages the URL!"
         ]
 
 
 focus : Html msg
 focus =
     makeHint
-        [ text "Check out "
+        [ Html.text "Check out "
         , codeLink (Href.toModule "elm" "browser" Nothing "Browser.Dom" Nothing) "Browser.Dom"
-        , text " for focusing on certain nodes. It uses tasks, so be sure you have learned about "
-        , code [] [ text "Cmd" ]
-        , text " values in "
+        , Html.text " for focusing on certain nodes. It uses tasks, so be sure you have learned about "
+        , Html.code [] [ Html.text "Cmd" ]
+        , Html.text " values in "
         , guide
-        , text " and then read through the "
+        , Html.text " and then read through the "
         , codeLink (Href.toModule "elm" "core" Nothing "Task" Nothing) "Task"
-        , text " module so you do not have to guess at how anything works!"
+        , Html.text " module so you do not have to guess at how anything works!"
         ]
 
 
 scroll : Html msg
 scroll =
     makeHint
-        [ text "Check out "
+        [ Html.text "Check out "
         , codeLink (Href.toModule "elm" "browser" Nothing "Browser.Dom" Nothing) "Browser.Dom"
-        , text " for getting and setting scroll positions. It uses tasks, so be sure you have learned about "
-        , code [] [ text "Cmd" ]
-        , text " values in "
+        , Html.text " for getting and setting scroll positions. It uses tasks, so be sure you have learned about "
+        , Html.code [] [ Html.text "Cmd" ]
+        , Html.text " values in "
         , guide
-        , text " and then read through the "
+        , Html.text " and then read through the "
         , codeLink (Href.toModule "elm" "core" Nothing "Task" Nothing) "Task"
-        , text " module so you do not have to guess at how anything works!"
+        , Html.text " module so you do not have to guess at how anything works!"
         ]
 
 
 mouse : Html msg
 mouse =
     makeHint
-        [ text "Folks usually use "
+        [ Html.text "Folks usually use "
         , codeLink (Href.toModule "elm" "html" Nothing "Html.Events" Nothing) "Html.Events"
-        , text " to detect clicks on buttons. If you want mouse events for the whole page, you may want "
+        , Html.text " to detect clicks on buttons. If you want mouse events for the whole page, you may want "
         , codeLink (Href.toModule "elm" "browser" Nothing "Browser.Events" Nothing) "Browser.Events"
-        , text " instead. Reading "
+        , Html.text " instead. Reading "
         , guide
-        , text " should give the foundation for using either!"
+        , Html.text " should give the foundation for using either!"
         ]
 
 
 keyboard : Html msg
 keyboard =
     makeHint
-        [ text "Folks usually use "
+        [ Html.text "Folks usually use "
         , codeLink (Href.toModule "elm" "html" Nothing "Html.Events" Nothing) "Html.Events"
-        , text " for key presses in text fields. If you want keyboard events for the whole page, you may want "
+        , Html.text " for key presses in text fields. If you want keyboard events for the whole page, you may want "
         , codeLink (Href.toModule "elm" "browser" Nothing "Browser.Events" Nothing) "Browser.Events"
-        , text " instead. Reading "
+        , Html.text " instead. Reading "
         , guide
-        , text " should give the foundation for using either!"
+        , Html.text " should give the foundation for using either!"
         ]
 
 
 window : Html msg
 window =
     makeHint
-        [ text "Use "
+        [ Html.text "Use "
         , codeLink (Href.toModule "elm" "browser" Nothing "Browser.Dom" Nothing) "Browser.Dom"
-        , text " to get the current window size, and use "
+        , Html.text " to get the current window size, and use "
         , codeLink (Href.toModule "elm" "browser" Nothing "Browser.Events" Nothing) "Browser.Events"
-        , text " to detect when the window changes size or is not visible at the moment."
+        , Html.text " to detect when the window changes size or is not visible at the moment."
         ]
 
 
 animation : Html msg
 animation =
     makeHint
-        [ text "If you are not using CSS animations, you will need "
+        [ Html.text "If you are not using CSS animations, you will need "
         , codeLink (Href.toModule "elm" "browser" Nothing "Browser.Events" (Just "onAnimationFrame")) "onAnimationFrame"
-        , text " to get smooth animations. The packages below may make one of these paths easier for you, but sometimes it is easier to just do things directly!"
+        , Html.text " to get smooth animations. The packages below may make one of these paths easier for you, but sometimes it is easier to just do things directly!"
         ]
 
 
 lenses : Html msg
 lenses =
     makeHint
-        [ text "Lenses are not commonly used in Elm. Their design focuses on manipulating deeply nested data structures, like records in records in dictionaries in lists. But rather than introducing a complex system to help with already complex data structures, we encourage folks to first work on simplifying the data structure."
-        , br [] []
-        , br [] []
-        , text "Maybe this means flattening records. Or using "
-        , a [ href "https://guide.elm-lang.org/types/custom_types.html" ] [ text "custom types" ]
-        , text " to model different possibilities more precisely. Or representing graphs with "
+        [ Html.text "Lenses are not commonly used in Elm. Their design focuses on manipulating deeply nested data structures, like records in records in dictionaries in lists. But rather than introducing a complex system to help with already complex data structures, we encourage folks to first work on simplifying the data structure."
+        , Html.br [] []
+        , Html.br [] []
+        , Html.text "Maybe this means flattening records. Or using "
+        , Html.a [ href "https://guide.elm-lang.org/types/custom_types.html" ] [ Html.text "custom types" ]
+        , Html.text " to model different possibilities more precisely. Or representing graphs with "
         , codeText "Dict"
-        , text " values as described "
-        , a [ href "https://evancz.gitbooks.io/functional-programming-in-elm/graphs/" ] [ text "here" ]
-        , text ". Or using the module system to create strong boundaries, using opaque types with helper functions to contain complexity."
-        , br [] []
-        , br [] []
-        , text "Point is, there are many paths to explore that will produce easier code with stronger guarantees, and folks are always happy to help if you share your situation on "
-        , a [ href "http://elmlang.herokuapp.com/" ] [ text "Slack" ]
-        , text " or "
-        , a [ href "https://discourse.elm-lang.org/" ] [ text "Discourse" ]
-        , text "!"
+        , Html.text " values as described "
+        , Html.a [ href "https://evancz.gitbooks.io/functional-programming-in-elm/graphs/" ] [ Html.text "here" ]
+        , Html.text ". Or using the module system to create strong boundaries, using opaque types with helper functions to contain complexity."
+        , Html.br [] []
+        , Html.br [] []
+        , Html.text "Point is, there are many paths to explore that will produce easier code with stronger guarantees, and folks are always happy to help if you share your situation on "
+        , Html.a [ href "http://elmlang.herokuapp.com/" ] [ Html.text "Slack" ]
+        , Html.text " or "
+        , Html.a [ href "https://discourse.elm-lang.org/" ] [ Html.text "Discourse" ]
+        , Html.text "!"
         ]
 
 
@@ -446,9 +452,9 @@ guide =
 
 codeLink : String -> String -> Html msg
 codeLink url txt =
-    a [ href url ] [ codeText txt ]
+    Html.a [ href url ] [ codeText txt ]
 
 
 codeText : String -> Html msg
 codeText txt =
-    code [] [ text txt ]
+    Html.code [] [ Html.text txt ]

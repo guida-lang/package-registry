@@ -1,6 +1,7 @@
 module Page.Diff exposing
     ( Model
     , Msg
+    , Releases
     , init
     , update
     , view
@@ -8,10 +9,8 @@ module Page.Diff exposing
 
 import Elm.Version as V
 import Href
-import Html exposing (..)
-import Html.Attributes exposing (..)
-import Html.Events exposing (..)
-import Html.Lazy exposing (..)
+import Html exposing (Html)
+import Html.Attributes as Attr
 import Http
 import Page.Problem as Problem
 import Release
@@ -91,23 +90,24 @@ view model =
         , Skeleton.projectSegment model.author model.project
         ]
     , warning = Skeleton.NoProblems
-    , attrs = [ class "pkg-overview" ]
+    , attrs = [ Attr.class "pkg-overview" ]
     , kids =
         case model.releases of
             Failure ->
-                [ div Problem.styles (Problem.offline "releases.json")
+                [ Html.div Problem.styles (Problem.offline "releases.json")
                 ]
 
             Loading ->
-                [ text "" -- TODO
+                [ Html.text "" -- TODO
                 ]
 
             Success (OneOrMore r rs) ->
-                [ h1 [] [ text "Published Versions" ]
-                , p [] <|
+                [ Html.h1 [] [ Html.text "Published Versions" ]
+                , Html.p [] <|
                     viewReleases model.author model.project <|
                         List.map .version (List.sortBy .time (r :: rs))
                 ]
+    , year = model.session.year
     }
 
 
@@ -116,6 +116,7 @@ viewReleases author project versions =
     case versions of
         v1 :: ((v2 :: _) as vs) ->
             let
+                attrs : List (Html.Attribute msg)
                 attrs =
                     if isSameMajor v1 v2 then
                         []
@@ -123,7 +124,9 @@ viewReleases author project versions =
                     else
                         [ bold ]
             in
-            viewReadmeLink author project v1 attrs :: text ", " :: viewReleases author project vs
+            viewReadmeLink author project v1 attrs
+                :: Html.text ", "
+                :: viewReleases author project vs
 
         r0 :: [] ->
             [ viewReadmeLink author project r0 [ bold ] ]
@@ -132,18 +135,19 @@ viewReleases author project versions =
             []
 
 
-bold : Attribute msg
+bold : Html.Attribute msg
 bold =
-    style "font-weight" "bold"
+    Attr.style "font-weight" "bold"
 
 
-viewReadmeLink : String -> String -> V.Version -> List (Attribute msg) -> Html msg
+viewReadmeLink : String -> String -> V.Version -> List (Html.Attribute msg) -> Html msg
 viewReadmeLink author project version attrs =
     let
+        url : String
         url =
             Href.toVersion author project (Just version)
     in
-    a (href url :: attrs) [ text (V.toString version) ]
+    Html.a (Attr.href url :: attrs) [ Html.text (V.toString version) ]
 
 
 isSameMajor : V.Version -> V.Version -> Bool

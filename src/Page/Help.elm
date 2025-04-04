@@ -1,13 +1,14 @@
 module Page.Help exposing
-    ( Model
+    ( Content
+    , Model
     , Msg
     , init
     , update
     , view
     )
 
-import Html exposing (..)
-import Html.Attributes exposing (..)
+import Html exposing (Html)
+import Html.Attributes as Attr
 import Http
 import Markdown
 import Session
@@ -69,6 +70,7 @@ view model =
     , warning = Skeleton.NoProblems
     , attrs = []
     , kids = [ viewContent model.title model.content ]
+    , year = model.session.year
     }
 
 
@@ -76,11 +78,11 @@ viewContent : String -> Content -> Html msg
 viewContent title content =
     case content of
         Failure ->
-            text ""
+            Html.text ""
 
         -- TODO
         Loading ->
-            h1 [ style "max-width" "600px" ] [ text title ]
+            Html.h1 [ Attr.style "max-width" "600px" ] [ Html.text title ]
 
         Success help ->
-            Markdown.toHtml [ style "max-width" "600px" ] help
+            Markdown.toHtml [ Attr.style "max-width" "600px" ] help

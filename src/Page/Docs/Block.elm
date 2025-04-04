@@ -1,5 +1,6 @@
 module Page.Docs.Block exposing
     ( Info
+    , TypeNameDict
     , makeInfo
     , view
     )
@@ -9,8 +10,8 @@ import Elm.Docs as Docs
 import Elm.Type as Type
 import Elm.Version as V
 import Href
-import Html exposing (..)
-import Html.Attributes exposing (..)
+import Html exposing (Html)
+import Html.Attributes as Attr
 import Utils.Markdown as Markdown
 
 
@@ -31,7 +32,7 @@ view : Info -> Docs.Block -> Html msg
 view info block =
     case block of
         Docs.MarkdownBlock markdown ->
-            span [ class "markdown-block" ] [ Markdown.block markdown ]
+            Html.span [ Attr.class "markdown-block" ] [ Markdown.block markdown ]
 
         Docs.ValueBlock value ->
             viewValue info value
@@ -46,21 +47,21 @@ view info block =
             viewUnion info union
 
         Docs.UnknownBlock name ->
-            span
-                [ class "TODO-make-this-red" ]
-                [ text "It seems that "
-                , code [] [ text name ]
-                , text " does not have any docs. Please open a bug report "
-                , a [ href "https://github.com/elm/package.elm-lang.org/issues" ] [ text "here" ]
-                , text " with the title “UnknownBlock found in docs” and with a link to this page in the description."
+            Html.span
+                [ Attr.class "TODO-make-this-red" ]
+                [ Html.text "It seems that "
+                , Html.code [] [ Html.text name ]
+                , Html.text " does not have any docs. Please open a bug report "
+                , Html.a [ Attr.href "https://github.com/elm/package.elm-lang.org/issues" ] [ Html.text "here" ]
+                , Html.text " with the title “UnknownBlock found in docs” and with a link to this page in the description."
                 ]
 
 
 viewCodeBlock : String -> String -> List (Line msg) -> Html msg
 viewCodeBlock name comment header =
-    div [ class "docs-block", id name ]
-        [ div [ class "docs-header" ] (List.map (div []) header)
-        , div [ class "docs-comment" ] [ Markdown.block comment ]
+    Html.div [ Attr.class "docs-block", Attr.id name ]
+        [ Html.div [ Attr.class "docs-header" ] (List.map (Html.div []) header)
+        , Html.div [ Attr.class "docs-comment" ] [ Markdown.block comment ]
         ]
 
 
@@ -71,6 +72,7 @@ viewCodeBlock name comment header =
 viewValue : Info -> Docs.Value -> Html msg
 viewValue info { name, comment, tipe } =
     let
+        nameHtml : Html msg
         nameHtml =
             toBoldLink info name
     in
@@ -85,7 +87,7 @@ viewValue info { name, comment, tipe } =
 
 indentFour : Line msg -> Line msg
 indentFour =
-    (::) (text "    ")
+    (::) (Html.text "    ")
 
 
 
@@ -95,6 +97,7 @@ indentFour =
 viewBinop : Info -> Docs.Binop -> Html msg
 viewBinop info { name, comment, tipe } =
     let
+        nameHtml : Html msg
         nameHtml =
             toBoldLink info ("(" ++ name ++ ")")
     in
@@ -114,16 +117,18 @@ viewBinop info { name, comment, tipe } =
 viewAlias : Info -> Docs.Alias -> Html msg
 viewAlias info { name, args, comment, tipe } =
     let
+        varsString : String
         varsString =
-            String.concat (List.map ((++) " ") args)
+            String.concat (List.map (\a -> " " ++ a) args)
 
+        aliasNameLine : List (Html msg)
         aliasNameLine =
             [ keyword "type"
             , space
             , keyword "alias"
             , space
             , toBoldLink info name
-            , text varsString
+            , Html.text varsString
             , space
             , equals
             ]
@@ -140,11 +145,13 @@ viewAlias info { name, args, comment, tipe } =
 viewUnion : Info -> Docs.Union -> Html msg
 viewUnion info { name, comment, args, tags } =
     let
+        varsString : String
         varsString =
-            String.concat <| List.map ((++) " ") args
+            String.concat <| List.map (\a -> " " ++ a) args
 
+        nameLine : List (Html msg)
         nameLine =
-            [ keyword "type", space, toBoldLink info name, text varsString ]
+            [ keyword "type", space, toBoldLink info name, Html.text varsString ]
     in
     viewCodeBlock name comment <|
         case tags of
@@ -158,11 +165,12 @@ viewUnion info { name, comment, args, tags } =
 unionMore : Info -> MoreSettings ( String, List Type.Type ) msg
 unionMore info =
     let
+        ctorToLines : ( String, List Type.Type ) -> OneOrMore (Line msg)
         ctorToLines ( ctor, args ) =
             toOneOrMore (toLines info Other (Type.Type ctor args))
     in
-    { open = [ text "    = " ]
-    , sep = text "    | "
+    { open = [ Html.text "    = " ]
+    , sep = Html.text "    | "
     , close = Nothing
     , openIndent = 6
     , sepIndent = 6
@@ -190,9 +198,11 @@ type alias TypeNameDict =
 makeInfo : String -> String -> Maybe V.Version -> String -> List Docs.Module -> Info
 makeInfo author project version moduleName docsList =
     let
+        addUnion : String -> Docs.Union -> Dict.Dict String ( String, String ) -> Dict.Dict String ( String, String )
         addUnion home union docs =
             Dict.insert (home ++ "." ++ union.name) ( home, union.name ) docs
 
+        addModule : Docs.Module -> Dict.Dict String ( String, String ) -> Dict.Dict String ( String, String )
         addModule docs dict =
             List.foldl (addUnion docs.name) dict docs.unions
     in
@@ -209,18 +219,19 @@ toBoldLink info name =
     makeLink info [ bold ] name name
 
 
-bold : Attribute msg
+bold : Html.Attribute msg
 bold =
-    style "font-weight" "bold"
+    Attr.style "font-weight" "bold"
 
 
-makeLink : Info -> List (Attribute msg) -> String -> String -> Html msg
+makeLink : Info -> List (Html.Attribute msg) -> String -> String -> Html msg
 makeLink { author, project, version, moduleName } attrs tagName humanName =
     let
+        url : String
         url =
             Href.toModule author project version moduleName (Just tagName)
     in
-    a (href url :: attrs) [ text humanName ]
+    Html.a (Attr.href url :: attrs) [ Html.text humanName ]
 
 
 toLinkLine : Info -> String -> Lines (Line msg)
@@ -228,10 +239,11 @@ toLinkLine info qualifiedName =
     case Dict.get qualifiedName info.typeNameDict of
         Nothing ->
             let
+                shortName : String
                 shortName =
                     last qualifiedName (String.split "." qualifiedName)
             in
-            One (String.length shortName) [ span [ title qualifiedName ] [ text shortName ] ]
+            One (String.length shortName) [ Html.span [ Attr.title qualifiedName ] [ Html.text shortName ] ]
 
         Just ( moduleName, name ) ->
             One (String.length name) [ makeLink { info | moduleName = moduleName } [] name name ]
@@ -273,10 +285,11 @@ toLines : Info -> Context -> Type.Type -> Lines (Line msg)
 toLines info context tipe =
     case tipe of
         Type.Var x ->
-            One (String.length x) [ text x ]
+            One (String.length x) [ Html.text x ]
 
         Type.Lambda arg result ->
             let
+                lambdaToLine : Lines (Line msg) -> List (Lines (Line msg)) -> Lines (Line msg)
                 lambdaToLine =
                     if context == Other then
                         toLinesHelp lambdaOne lambdaMore
@@ -288,7 +301,7 @@ toLines info context tipe =
                 List.map (toLines info Func) (collectArgs [] result)
 
         Type.Tuple [] ->
-            One 2 [ text "()" ]
+            One 2 [ Html.text "()" ]
 
         Type.Tuple (arg :: args) ->
             toLinesHelp tupleOne
@@ -298,6 +311,7 @@ toLines info context tipe =
 
         Type.Type name args ->
             let
+                needsParens : Bool
                 needsParens =
                     context == App && not (List.isEmpty args)
             in
@@ -308,13 +322,14 @@ toLines info context tipe =
                 (List.map (toLines info App) args)
 
         Type.Record [] Nothing ->
-            One 2 [ text "{}" ]
+            One 2 [ Html.text "{}" ]
 
         Type.Record [] (Just ext) ->
-            One (6 + String.length ext) [ text <| "{ " ++ ext ++ " | }" ]
+            One (6 + String.length ext) [ Html.text <| "{ " ++ ext ++ " | }" ]
 
         Type.Record (f :: fs) extension ->
             let
+                toLns : ( String, Type.Type ) -> ( String, Lines (Line msg) )
                 toLns ( field, fieldType ) =
                     ( field, toLines info Other fieldType )
             in
@@ -332,7 +347,7 @@ toLines info context tipe =
                             One width line
 
                         More first rest ->
-                            More [ text "{ ", text ext ] (first :: rest ++ [ [ text "}" ] ])
+                            More [ Html.text "{ ", Html.text ext ] (first :: rest ++ [ [ Html.text "}" ] ])
 
 
 
@@ -352,7 +367,7 @@ collectArgs revArgs tipe =
 lambdaOne : OneSettings (Lines (Line msg)) msg
 lambdaOne =
     { open = []
-    , sep = [ text " -> " ]
+    , sep = [ Html.text " -> " ]
     , close = []
     , openWidth = 0
     , sepWidth = 2
@@ -364,7 +379,7 @@ lambdaOne =
 lambdaMore : MoreSettings (Lines (Line msg)) msg
 lambdaMore =
     { open = []
-    , sep = text "-> "
+    , sep = Html.text "-> "
     , close = Nothing
     , openIndent = 0
     , sepIndent = 3
@@ -374,9 +389,9 @@ lambdaMore =
 
 lambdaOneParens : OneSettings (Lines (Line msg)) msg
 lambdaOneParens =
-    { open = [ text "(" ]
-    , sep = [ text " -> " ]
-    , close = [ text ")" ]
+    { open = [ Html.text "(" ]
+    , sep = [ Html.text " -> " ]
+    , close = [ Html.text ")" ]
     , openWidth = 1
     , sepWidth = 2
     , closeWidth = 1
@@ -386,9 +401,9 @@ lambdaOneParens =
 
 lambdaMoreParens : MoreSettings (Lines (Line msg)) msg
 lambdaMoreParens =
-    { open = [ text "( " ]
-    , sep = text "  -> "
-    , close = Just [ text ")" ]
+    { open = [ Html.text "( " ]
+    , sep = Html.text "  -> "
+    , close = Just [ Html.text ")" ]
     , openIndent = 2
     , sepIndent = 5
     , toLines = toOneOrMore
@@ -401,9 +416,9 @@ lambdaMoreParens =
 
 tupleOne : OneSettings (Lines (Line msg)) msg
 tupleOne =
-    { open = [ text "( " ]
-    , sep = [ text ", " ]
-    , close = [ text " )" ]
+    { open = [ Html.text "( " ]
+    , sep = [ Html.text ", " ]
+    , close = [ Html.text " )" ]
     , openWidth = 2
     , sepWidth = 2
     , closeWidth = 2
@@ -413,9 +428,9 @@ tupleOne =
 
 tupleMore : MoreSettings (Lines (Line msg)) msg
 tupleMore =
-    { open = [ text "( " ]
-    , sep = text ", "
-    , close = Just [ text ")" ]
+    { open = [ Html.text "( " ]
+    , sep = Html.text ", "
+    , close = Just [ Html.text ")" ]
     , openIndent = 2
     , sepIndent = 2
     , toLines = toOneOrMore
@@ -429,9 +444,9 @@ tupleMore =
 typeOne : Bool -> OneSettings (Lines (Line msg)) msg
 typeOne needsParens =
     if needsParens then
-        { open = [ text "(" ]
-        , sep = [ text " " ]
-        , close = [ text ")" ]
+        { open = [ Html.text "(" ]
+        , sep = [ Html.text " " ]
+        , close = [ Html.text ")" ]
         , openWidth = 1
         , sepWidth = 1
         , closeWidth = 1
@@ -440,7 +455,7 @@ typeOne needsParens =
 
     else
         { open = []
-        , sep = [ text " " ]
+        , sep = [ Html.text " " ]
         , close = []
         , openWidth = 0
         , sepWidth = 1
@@ -452,9 +467,9 @@ typeOne needsParens =
 typeMore : Bool -> MoreSettings (Lines (Line msg)) msg
 typeMore needsParens =
     if needsParens then
-        { open = [ text "(" ]
-        , sep = text "    "
-        , close = Just [ text ")" ]
+        { open = [ Html.text "(" ]
+        , sep = Html.text "    "
+        , close = Just [ Html.text ")" ]
         , openIndent = 0
         , sepIndent = 4
         , toLines = toOneOrMore
@@ -462,7 +477,7 @@ typeMore needsParens =
 
     else
         { open = []
-        , sep = text "    "
+        , sep = Html.text "    "
         , close = Nothing
         , openIndent = 0
         , sepIndent = 4
@@ -476,9 +491,9 @@ typeMore needsParens =
 
 recordOne : OneSettings ( String, Lines (Line msg) ) msg
 recordOne =
-    { open = [ text "{ " ]
-    , sep = [ text ", " ]
-    , close = [ text " }" ]
+    { open = [ Html.text "{ " ]
+    , sep = [ Html.text ", " ]
+    , close = [ Html.text " }" ]
     , openWidth = 2
     , sepWidth = 2
     , closeWidth = 2
@@ -488,9 +503,9 @@ recordOne =
 
 recordMore : MoreSettings ( String, Lines (Line msg) ) msg
 recordMore =
-    { open = [ text "{ " ]
-    , sep = text ", "
-    , close = Just [ text "}" ]
+    { open = [ Html.text "{ " ]
+    , sep = Html.text ", "
+    , close = Just [ Html.text "}" ]
     , openIndent = 6
     , sepIndent = 6
     , toLines = fieldToLines
@@ -504,12 +519,13 @@ recordMore =
 recordOneExt : String -> OneSettings ( String, Lines (Line msg) ) msg
 recordOneExt extension =
     let
+        open : String
         open =
             "{ " ++ extension ++ " | "
     in
-    { open = [ text open ]
-    , sep = [ text ", " ]
-    , close = [ text " }" ]
+    { open = [ Html.text open ]
+    , sep = [ Html.text ", " ]
+    , close = [ Html.text " }" ]
     , openWidth = String.length open
     , sepWidth = 2
     , closeWidth = 2
@@ -519,8 +535,8 @@ recordOneExt extension =
 
 recordMoreExt : MoreSettings ( String, Lines (Line msg) ) msg
 recordMoreExt =
-    { open = [ text "    | " ]
-    , sep = text "    , "
+    { open = [ Html.text "    | " ]
+    , sep = Html.text "    , "
     , close = Nothing
     , openIndent = 10
     , sepIndent = 10
@@ -539,7 +555,7 @@ fieldToLine ( field, lines ) =
             Nothing
 
         One width line ->
-            Just ( String.length field + 3 + width, text field :: space :: colon :: space :: line )
+            Just ( String.length field + 3 + width, Html.text field :: space :: colon :: space :: line )
 
 
 fieldToLines : ( String, Lines (Line msg) ) -> OneOrMore (Line msg)
@@ -547,17 +563,18 @@ fieldToLines ( field, lines ) =
     case lines of
         One width line ->
             let
+                potentialWidth : Int
                 potentialWidth =
                     String.length field + 3 + width
             in
             if potentialWidth < maxWidth then
-                OneOrMore (text field :: space :: colon :: space :: line) []
+                OneOrMore (Html.text field :: space :: colon :: space :: line) []
 
             else
-                OneOrMore [ text field, space, colon ] [ line ]
+                OneOrMore [ Html.text field, space, colon ] [ line ]
 
         More x xs ->
-            OneOrMore [ text field, space, colon ] (x :: xs)
+            OneOrMore [ Html.text field, space, colon ] (x :: xs)
 
 
 
@@ -625,11 +642,7 @@ type alias MoreSettings a msg =
 
 toLinesHelp : OneSettings a msg -> MoreSettings a msg -> a -> List a -> Lines (Line msg)
 toLinesHelp one more x xs =
-    let
-        maybeOneLine =
-            toOneLine one.openWidth one.open one (x :: xs)
-    in
-    case maybeOneLine of
+    case toOneLine one.openWidth one.open one (x :: xs) of
         Just ( width, line ) ->
             One width line
 
@@ -651,6 +664,7 @@ toOneLine chunkWidth chunk one entries =
                             |> Maybe.andThen
                                 (\( remainingWidth, remainingLine ) ->
                                     let
+                                        width : Int
                                         width =
                                             chunkWidth + entryWidth + remainingWidth
                                     in
@@ -669,15 +683,19 @@ toMoreLines s x xs =
         (OneOrMore firstLine firstRest) =
             s.toLines x
 
+        openIndentation : Html msg
         openIndentation =
-            text (String.repeat s.openIndent " ")
+            Html.text (String.repeat s.openIndent " ")
 
+        sepIndentation : Html msg
         sepIndentation =
-            text (String.repeat s.sepIndent " ")
+            Html.text (String.repeat s.sepIndent " ")
 
+        toChunk : OneOrMore (List (Html msg)) -> List (List (Html msg))
         toChunk (OneOrMore y ys) =
             (s.sep :: y) :: List.map ((::) sepIndentation) ys
 
+        otherLines : List (List (Html msg))
         otherLines =
             List.map ((::) openIndentation) firstRest
                 ++ List.concatMap (toChunk << s.toLines) xs
@@ -697,19 +715,19 @@ toMoreLines s x xs =
 
 keyword : String -> Html msg
 keyword kw =
-    span [ class "hljs-keyword" ] [ text kw ]
+    Html.span [ Attr.class "hljs-keyword" ] [ Html.text kw ]
 
 
 space : Html msg
 space =
-    text " "
+    Html.text " "
 
 
 colon : Html msg
 colon =
-    span [] [ text ":" ]
+    Html.span [] [ Html.text ":" ]
 
 
 equals : Html msg
 equals =
-    span [] [ text "=" ]
+    Html.span [] [ Html.text "=" ]
