@@ -17,9 +17,8 @@ module Guida.Project exposing
 
 -}
 
-import Dict
 import Elm.Constraint as Constraint exposing (Constraint)
-import Elm.License as License exposing (License)
+import Elm.License as License
 import Elm.Module as Module
 import Elm.Package as Package
 import Elm.Version as Version exposing (Version)
