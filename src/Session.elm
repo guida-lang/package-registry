@@ -1,5 +1,6 @@
 module Session exposing
     ( Data
+    , Outline(..)
     , addDocs
     , addEntries
     , addOutline
@@ -19,8 +20,9 @@ module Session exposing
 
 import Dict
 import Elm.Docs as Docs
-import Elm.Project as Outline
+import Elm.Project as ElmOutline
 import Elm.Version as V
+import Guida.Project as GuidaOutline
 import Http
 import Json.Decode as Decode
 import Page.Search.Entry as Entry
@@ -38,7 +40,7 @@ type alias Data =
     , releases : Dict.Dict String (OneOrMore Release.Release)
     , readmes : Dict.Dict String String
     , docs : Dict.Dict String (List Docs.Module)
-    , outlines : Dict.Dict String Outline.PackageInfo
+    , outlines : Dict.Dict String Outline
     , year : Int
     }
 
@@ -135,37 +137,68 @@ fetchDocs author project version =
 
 
 
--- ELM.JSON
+-- .JSON
 
 
-getOutline : Data -> String -> String -> V.Version -> Maybe Outline.PackageInfo
+type Outline
+    = GuidaOutline GuidaOutline.PackageInfo
+    | ElmOutline ElmOutline.PackageInfo
+
+
+getOutline : Data -> String -> String -> V.Version -> Maybe Outline
 getOutline data author project version =
     Dict.get (toVsnKey author project version) data.outlines
 
 
-addOutline : String -> String -> V.Version -> Outline.PackageInfo -> Data -> Data
+addOutline : String -> String -> V.Version -> Outline -> Data -> Data
 addOutline author project version outline data =
     { data | outlines = Dict.insert (toVsnKey author project version) outline data.outlines }
 
 
-fetchOutline : String -> String -> V.Version -> Http.Request Outline.PackageInfo
+fetchOutline : String -> String -> V.Version -> Http.Request Outline
 fetchOutline author project version =
     Http.get
-        (Url.absolute [ "packages", author, project, V.toString version, "elm.json" ] [])
+        (Url.absolute [ "packages", author, project, V.toString version, "json" ] [])
         outlineDecoder
 
 
-outlineDecoder : Decode.Decoder Outline.PackageInfo
+outlineDecoder : Decode.Decoder Outline
 outlineDecoder =
-    Outline.decoder
-        |> Decode.andThen getPkgOutline
+    Decode.oneOf
+        [ guidaOutlineDecoder
+            |> Decode.map GuidaOutline
+        , elmOutlineDecoder
+            |> Decode.map ElmOutline
+        ]
 
 
-getPkgOutline : Outline.Project -> Decode.Decoder Outline.PackageInfo
-getPkgOutline outline =
-    case outline of
-        Outline.Application _ ->
+guidaOutlineDecoder : Decode.Decoder GuidaOutline.PackageInfo
+guidaOutlineDecoder =
+    GuidaOutline.decoder
+        |> Decode.andThen getGuidaPkgOutline
+
+
+getGuidaPkgOutline : GuidaOutline.Project -> Decode.Decoder GuidaOutline.PackageInfo
+getGuidaPkgOutline guidaOutline =
+    case guidaOutline of
+        GuidaOutline.Application _ ->
             Decode.fail "Unexpected application"
 
-        Outline.Package info ->
+        GuidaOutline.Package info ->
+            Decode.succeed info
+
+
+elmOutlineDecoder : Decode.Decoder ElmOutline.PackageInfo
+elmOutlineDecoder =
+    ElmOutline.decoder
+        |> Decode.andThen getElmPkgOutline
+
+
+getElmPkgOutline : ElmOutline.Project -> Decode.Decoder ElmOutline.PackageInfo
+getElmPkgOutline elmOutline =
+    case elmOutline of
+        ElmOutline.Application _ ->
+            Decode.fail "Unexpected application"
+
+        ElmOutline.Package info ->
             Decode.succeed info

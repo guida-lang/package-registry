@@ -147,27 +147,75 @@ app.get("/packages/:author/:project/:version/about", async (req, res, next) => {
     "SELECT * FROM packages WHERE author = ? AND project = ?",
     [req.params.author, req.params.project],
     (err, row) => {
-      if (err) {
-        next(err);
-      } else {
+      if (row) {
         res.send(makeHtml(`${row.author}/${row.project}`));
+      } else {
+        next(err);
       }
     }
   );
 });
 
 app.get(
-  "/packages/:author/:project/:version/elm.json",
+  "/packages/:author/:project/:version/guida.json",
   async (req, res, next) => {
     db.get(
       `
-      SELECT r.elm_json FROM releases AS r
+      SELECT r.is_guida, r.json FROM releases AS r
       INNER JOIN packages AS p ON p.id = r.package_id
       WHERE r.version = ? AND p.author = ? AND p.project = ?`,
       [req.params.version, req.params.author, req.params.project],
       (err, row) => {
         if (row) {
-          res.send(row.elm_json);
+          if (!row.is_guida) {
+            res.status(404).send(`This is a Elm package, use /packages/${req.params.author}/${req.params.project}/${req.params.version}/elm.json endpoint instead.`);
+          } else {
+            res.send(row.json);
+          }
+        } else {
+          next(err);
+        }
+      }
+    );
+  }
+);
+
+app.get(
+  "/packages/:author/:project/:version/elm.json",
+  async (req, res, next) => {
+    db.get(
+      `
+      SELECT r.is_guida, r.json FROM releases AS r
+      INNER JOIN packages AS p ON p.id = r.package_id
+      WHERE r.version = ? AND p.author = ? AND p.project = ?`,
+      [req.params.version, req.params.author, req.params.project],
+      (err, row) => {
+        if (row) {
+          if (row.is_guida) {
+            res.status(404).send(`This is a Guida package, use /packages/${req.params.author}/${req.params.project}/${req.params.version}/guida.json endpoint instead.`);
+          } else {
+            res.send(row.json);
+          }
+        } else {
+          next(err);
+        }
+      }
+    );
+  }
+);
+
+app.get(
+  "/packages/:author/:project/:version/json",
+  async (req, res, next) => {
+    db.get(
+      `
+      SELECT r.json FROM releases AS r
+      INNER JOIN packages AS p ON p.id = r.package_id
+      WHERE r.version = ? AND p.author = ? AND p.project = ?`,
+      [req.params.version, req.params.author, req.params.project],
+      (err, row) => {
+        if (row) {
+          res.send(row.json);
         } else {
           next(err);
         }
@@ -304,6 +352,7 @@ app.post("/all-packages/since/:index", async (req, res, next) => {
 });
 
 const registerUpload = upload.fields([
+  { name: "guida.json", maxCount: 1 },
   { name: "elm.json", maxCount: 1 },
   { name: "docs.json", maxCount: 1 },
   { name: "README.md", maxCount: 1 },
@@ -374,7 +423,15 @@ app.post("/register", registerUpload, async (req, res) => {
 
   // TODO compare hash with commitHash
 
-  const elmJson = JSON.parse(req.files["elm.json"][0].buffer.toString());
+  let isGuida = false;
+  let jsonFile = req.files["elm.json"];
+
+  if (req.files["guida.json"]) {
+    isGuida = true;
+    jsonFile = req.files["guida.json"];
+  }
+
+  const json = JSON.parse(jsonFile[0].buffer.toString());
   const docs = JSON.parse(req.files["docs.json"][0].buffer.toString());
   const readme = req.files["README.md"][0].buffer.toString();
 
@@ -386,16 +443,17 @@ app.post("/register", registerUpload, async (req, res) => {
     db.run("INSERT INTO packages VALUES (NULL, ?, ?, ?, ?, NULL)", [
       author,
       project,
-      elmJson.summary,
-      elmJson.license,
+      json.summary,
+      json.license,
     ]);
 
     db.run(
-      "INSERT INTO releases VALUES (NULL, ?, ?, ?, ?, ?, ?, (SELECT id FROM packages WHERE author = ? AND project = ?))",
+      "INSERT INTO releases VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, (SELECT id FROM packages WHERE author = ? AND project = ?))",
       [
         vsn,
         time,
-        JSON.stringify(elmJson),
+        isGuida,
+        JSON.stringify(json),
         readme,
         JSON.stringify(docs),
         hash,
@@ -517,13 +575,32 @@ const handlePackage = async (uplink, pkg) => {
         https.get(
           `${uplink.url}/packages/${author}/${project}/${version}/elm.json`,
           (res) => {
-            res.on("data", (chunk) => {
-              elmRawData += chunk;
-            });
+            if (res.statusCode === 200) {
+              res.on("data", (chunk) => {
+                elmRawData += chunk;
+              });
 
-            res.on("end", () => {
-              resolve(JSON.parse(elmRawData));
-            });
+              res.on("end", () => {
+                resolve({ isGuida: false, json: JSON.parse(elmRawData) });
+              });
+            } else {
+              res.end();
+
+              let guidaRawData = "";
+
+              https.get(
+                `${uplink.url}/packages/${author}/${project}/${version}/guida.json`,
+                (res) => {
+                  res.on("data", (chunk) => {
+                    guidaRawData += chunk;
+                  });
+
+                  res.on("end", () => {
+                    resolve({ isGuida: true, json: JSON.parse(guidaRawData) });
+                  });
+                }
+              );
+            }
           }
         );
       }),
@@ -543,21 +620,22 @@ const handlePackage = async (uplink, pkg) => {
           }
         );
       }),
-    ]).then(([releases, docs, elmJson, readme]) => {
+    ]).then(([releases, docs, jsonResult, readme]) => {
       db.serialize(function () {
         db.run("BEGIN");
 
         db.run(
           "INSERT INTO packages VALUES (NULL, ?, ?, ?, ?, ?) ON CONFLICT(author, project, uplink_id) DO UPDATE SET summary=excluded.summary, license=excluded.license",
-          [author, project, elmJson?.summary, elmJson?.license, uplink.id]
+          [author, project, jsonResult?.json?.summary, jsonResult?.json?.license, uplink.id]
         );
 
         db.run(
-          "INSERT INTO releases VALUES (NULL, ?, ?, ?, ?, ?, ?, (SELECT id FROM packages WHERE author = ? AND project = ?))",
+          "INSERT INTO releases VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, (SELECT id FROM packages WHERE author = ? AND project = ?))",
           [
             version,
             releases[version],
-            elmJson && JSON.stringify(elmJson),
+            jsonResult?.isGuida,
+            JSON.stringify(jsonResult?.json),
             readme,
             JSON.stringify(docs),
             hash,

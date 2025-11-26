@@ -48,7 +48,7 @@ type alias Model =
     , releases : Status (OneOrMore Release.Release)
     , readme : Status String
     , docs : Status (List Docs.Module)
-    , outline : Status Outline.PackageInfo
+    , outline : Status Session.Outline
     }
 
 
@@ -96,7 +96,7 @@ getInfo latest model =
         version =
             Maybe.withDefault latest model.version
 
-        maybeInfo : Maybe ( String, List Docs.Module, Outline.PackageInfo )
+        maybeInfo : Maybe ( String, List Docs.Module, Session.Outline )
         maybeInfo =
             Maybe.map3 (\a b c -> ( a, b, c ))
                 (Session.getReadme model.session author project version)
@@ -146,7 +146,7 @@ type Msg
     | GotReleases (Result Http.Error (OneOrMore Release.Release))
     | GotReadme V.Version (Result Http.Error String)
     | GotDocs V.Version (Result Http.Error (List Docs.Module))
-    | GotOutline V.Version (Result Http.Error Outline.PackageInfo)
+    | GotOutline V.Version (Result Http.Error Session.Outline)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -319,7 +319,7 @@ toWarning model =
                     warnIfNewer model
 
                 Success outline ->
-                    if isOld outline.elm then
+                    if isOld outline then
                         Skeleton.WarnOld
 
                     else
@@ -388,19 +388,34 @@ renames =
         ]
 
 
-isOld : C.Constraint -> Bool
-isOld elmConstraint =
-    case String.split " " (C.toString elmConstraint) of
-        [ mini, minop, _, maxop, maxi ] ->
-            Maybe.withDefault False <|
-                Maybe.map4 (\low lop hop high -> not (lop low ( 0, 19, 1 ) && hop ( 0, 19, 1 ) high))
-                    (getVsn mini)
-                    (getOp minop)
-                    (getOp maxop)
-                    (getVsn maxi)
+isOld : Session.Outline -> Bool
+isOld outline =
+    case outline of
+        Session.GuidaOutline guidaOutline ->
+            case String.split " " (C.toString guidaOutline.guida) of
+                [ mini, minop, _, maxop, maxi ] ->
+                    Maybe.withDefault False <|
+                        Maybe.map4 (\low lop hop high -> not (lop low ( 1, 0, 0 ) && hop ( 1, 0, 0 ) high))
+                            (getVsn mini)
+                            (getOp minop)
+                            (getOp maxop)
+                            (getVsn maxi)
 
-        _ ->
-            False
+                _ ->
+                    False
+
+        Session.ElmOutline elmOutline ->
+            case String.split " " (C.toString elmOutline.elm) of
+                [ mini, minop, _, maxop, maxi ] ->
+                    Maybe.withDefault False <|
+                        Maybe.map4 (\low lop hop high -> not (lop low ( 0, 19, 1 ) && hop ( 0, 19, 1 ) high))
+                            (getVsn mini)
+                            (getOp minop)
+                            (getOp maxop)
+                            (getVsn maxi)
+
+                _ ->
+                    False
 
 
 getVsn : String -> Maybe ( Int, Int, Int )
@@ -739,33 +754,30 @@ viewValueItem { author, project, version } moduleName ownerName valueName =
 -- VIEW ABOUT
 
 
-viewAbout : Status Outline.PackageInfo -> Status (OneOrMore Release.Release) -> Html msg
+viewAbout : Status Session.Outline -> Status (OneOrMore Release.Release) -> Html msg
 viewAbout outlineStatus releases =
     case outlineStatus of
         Success outline ->
             Html.div [ Attr.class "block-list pkg-about" ]
                 [ Html.h1 [ Attr.class "block-list-title" ] [ Html.text "About" ]
-                , Html.p [] [ Html.text outline.summary ]
-                , Html.pre [] [ Html.code [] [ Html.text ("elm install " ++ Pkg.toString outline.name) ] ]
+                , Html.p [] [ Html.text (outlineSummary outline) ]
+                , Html.pre [] [ Html.code [] [ Html.text ("guida install " ++ Pkg.toString (outlineName outline)) ] ]
                 , Html.p []
                     [ Html.text "Published "
                     , viewReleaseTime outline releases
                     , Html.text " under the "
-                    , Html.a [ Attr.href (toLicenseUrl outline) ] [ Html.code [] [ Html.text (License.toString outline.license) ] ]
+                    , Html.a [ Attr.href (toLicenseUrl outline) ] [ Html.code [] [ Html.text (License.toString (outlineLicense outline)) ] ]
                     , Html.text " license."
                     ]
-                , Html.p []
-                    [ Html.text "Elm version "
-                    , Html.code [] [ Html.text (C.toString outline.elm) ]
-                    ]
-                , case outline.deps of
+                , viewVersion outline
+                , case outlineDeps outline of
                     [] ->
                         Html.text ""
 
                     _ :: _ ->
                         Html.div []
                             [ Html.h1 [ Attr.style "margin-top" "2em", Attr.style "margin-bottom" "0.5em" ] [ Html.text "Dependencies" ]
-                            , Html.table [] (List.map viewDependency outline.deps)
+                            , Html.table [] (List.map viewDependency (outlineDeps outline))
                             ]
                 ]
 
@@ -779,7 +791,7 @@ viewAbout outlineStatus releases =
                 (Problem.offline "elm.json")
 
 
-viewReleaseTime : Outline.PackageInfo -> Status (OneOrMore Release.Release) -> Html msg
+viewReleaseTime : Session.Outline -> Status (OneOrMore Release.Release) -> Html msg
 viewReleaseTime outline releasesStatus =
     case releasesStatus of
         Failure ->
@@ -789,7 +801,7 @@ viewReleaseTime outline releasesStatus =
             Html.text ""
 
         Success releases ->
-            case Release.getTime outline.version releases of
+            case Release.getTime (outlineVersion outline) releases of
                 Nothing ->
                     Html.text ""
 
@@ -846,11 +858,11 @@ monthToString month =
             "Dec"
 
 
-toLicenseUrl : Outline.PackageInfo -> String
+toLicenseUrl : Session.Outline -> String
 toLicenseUrl outline =
     Url.crossOrigin
         "https://github.com"
-        [ Pkg.toString outline.name, "blob", V.toString outline.version, "LICENSE" ]
+        [ Pkg.toString (outlineName outline), "blob", V.toString (outlineVersion outline), "LICENSE" ]
         []
 
 
@@ -870,6 +882,22 @@ viewDependency ( pkg, constraint ) =
             ]
         , Html.td [] [ Html.code [] [ Html.text (C.toString constraint) ] ]
         ]
+
+
+viewVersion : Session.Outline -> Html msg
+viewVersion outline =
+    case outline of
+        Session.GuidaOutline guidaOutline ->
+            Html.p []
+                [ Html.text "Guida version "
+                , Html.code [] [ Html.text (C.toString guidaOutline.guida) ]
+                ]
+
+        Session.ElmOutline elmOutline ->
+            Html.p []
+                [ Html.text "Elm version "
+                , Html.code [] [ Html.text (C.toString elmOutline.elm) ]
+                ]
 
 
 
@@ -892,3 +920,57 @@ navLink name url isBold =
                 ]
     in
     Html.a (Attr.href url :: attributes) [ Html.text name ]
+
+
+
+-- OUTLINE
+
+
+outlineSummary : Session.Outline -> String
+outlineSummary outline =
+    case outline of
+        Session.GuidaOutline guidaOutline ->
+            guidaOutline.summary
+
+        Session.ElmOutline elmOutline ->
+            elmOutline.summary
+
+
+outlineName : Session.Outline -> Pkg.Name
+outlineName outline =
+    case outline of
+        Session.GuidaOutline guidaOutline ->
+            guidaOutline.name
+
+        Session.ElmOutline elmOutline ->
+            elmOutline.name
+
+
+outlineLicense : Session.Outline -> License.License
+outlineLicense outline =
+    case outline of
+        Session.GuidaOutline guidaOutline ->
+            guidaOutline.license
+
+        Session.ElmOutline elmOutline ->
+            elmOutline.license
+
+
+outlineVersion : Session.Outline -> V.Version
+outlineVersion outline =
+    case outline of
+        Session.GuidaOutline guidaOutline ->
+            guidaOutline.version
+
+        Session.ElmOutline elmOutline ->
+            elmOutline.version
+
+
+outlineDeps : Session.Outline -> Outline.Deps C.Constraint
+outlineDeps outline =
+    case outline of
+        Session.GuidaOutline guidaOutline ->
+            guidaOutline.deps
+
+        Session.ElmOutline elmOutline ->
+            elmOutline.deps
