@@ -46,5 +46,10 @@ Defaults to `database/development.sqlite3`.
 - **ENABLE_CACHE**: Allows for the creation of a local copy of the packages.
 Disabled by default.
 - **CRON_TIME**: The cron syntax to fire off the background job to keep the registry
+- **CRON_DISABLED**: Optional. When set to `true` (case-sensitive), the background cron job that polls uplinks will be disabled. By default the cron job runs; set this variable only when you want to disable polling.
 updated with the uplinks. Defaults to `0 0 * * * *` (hourly).
 - **PORT**: The port on which the server will run. Defaults to `3000`.
+- **UPLINK**: Optional. The URL of an upstream package registry to mirror packages from (for example `https://package.elm-lang.org`).
+
+	- When provided, the server inserts the uplink into the database at startup and the background cron job will poll the uplink for new packages.
+	- Note: you only need to set `UPLINK` once. The value is persisted in the database so subsequent restarts do not require re-setting the environment variable.

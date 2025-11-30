@@ -32,5 +32,3 @@ CREATE TABLE IF NOT EXISTS releases (
 
   UNIQUE(version, package_id)
 );
-
-INSERT INTO uplinks VALUES(NULL, "https://package.elm-lang.org", 0) ON CONFLICT(url) DO NOTHING;

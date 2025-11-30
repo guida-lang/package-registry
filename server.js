@@ -673,6 +673,16 @@ const handleAllPackages = async (uplink, allPackages) => {
 // Database Setup
 db.exec(fs.readFileSync(path.join(__dirname, "database/init.sql")).toString());
 
+if (process.env.UPLINK) {
+  try {
+    const uplinkUrl = new URL(process.env.UPLINK).toString();
+    db.run("INSERT INTO uplinks VALUES(NULL, ?, 0) ON CONFLICT(url) DO NOTHING;", [uplinkUrl]);
+  } catch (err) {
+    console.error(err);
+    process.exit(1);
+  }
+}
+
 // Cron job
 let cronTime = "0 0 * * * *";
 
@@ -683,57 +693,63 @@ if (process.env.CRON_TIME) {
   }
 }
 
-console.log(`CronJob time: "${cronTime}"`);
+const cronDisabled = process.env.CRON_DISABLED === "true";
 
-cron.CronJob.from({
-  cronTime,
-  onTick: async () => {
-    return new Promise((resolveAll, rejectAll) => {
-      db.all(
-        "SELECT * FROM uplinks",
-        handleError((uplinks) => {
-          Promise.all(uplinks.map((uplink) => {
-            return new Promise((resolve, reject) => {
-              https.get(`${uplink.url}/all-packages/since/${uplink.last_index}`, (res) => {
-                let allPackagesRawData = "";
+if (cronDisabled) {
+  console.log("Cron jobs are disabled via CRON_DISABLED environment variable.");
+} else {
+  console.log(`CronJob time: "${cronTime}"`);
 
-                res.on("data", (chunk) => {
-                  allPackagesRawData += chunk;
-                });
+  cron.CronJob.from({
+    cronTime,
+    onTick: async () => {
+      return new Promise((resolveAll, rejectAll) => {
+        db.all(
+          "SELECT * FROM uplinks",
+          handleError((uplinks) => {
+            Promise.all(uplinks.map((uplink) => {
+              return new Promise((resolve, reject) => {
+                https.get(`${uplink.url}/all-packages/since/${uplink.last_index}`, (res) => {
+                  let allPackagesRawData = "";
 
-                res.on("end", async () => {
-                  try {
-                    const allPackages = JSON.parse(allPackagesRawData);
+                  res.on("data", (chunk) => {
+                    allPackagesRawData += chunk;
+                  });
 
-                    if (allPackages.length > 0) {
-                      await handleAllPackages(uplink, allPackages.reverse());
+                  res.on("end", async () => {
+                    try {
+                      const allPackages = JSON.parse(allPackagesRawData);
 
-                    } else {
-                      console.log(`No more packages found for ${uplink.url}...`);
+                      if (allPackages.length > 0) {
+                        await handleAllPackages(uplink, allPackages.reverse());
+
+                      } else {
+                        console.log(`No more packages found for ${uplink.url}...`);
+                      }
+
+                      resolve();
+                    } catch (e) {
+                      reject(e);
                     }
-
-                    resolve();
-                  } catch (e) {
-                    reject(e);
-                  }
+                  });
+                }).on("error", (e) => {
+                  reject(e);
                 });
-              }).on("error", (e) => {
-                reject(e);
               });
+            })).then(() => {
+              resolveAll();
+            }).catch((error) => {
+              rejectAll(error);
             });
-          })).then(() => {
-            resolveAll();
-          }).catch((error) => {
-            rejectAll(error);
-          });
-        })
-      );
-    });
-  },
-  start: true,
-  runOnInit: true,
-  waitForCompletion: true
-});
+          })
+        );
+      });
+    },
+    start: true,
+    runOnInit: true,
+    waitForCompletion: true
+  });
+}
 
 // Start Web Server
 process.env.PORT ||= 3000;
