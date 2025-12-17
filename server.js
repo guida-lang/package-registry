@@ -55,13 +55,13 @@ app.get("/assets/fonts.css", async (request, response) => {
 });
 
 // Database
-process.env.DATABASE_URL ||= url
-  .pathToFileURL("database/development.sqlite3")
-  .toString();
+process.env.DATABASE_URL ||= "database/development.sqlite3"
+
+const databaseUrl = url.pathToFileURL(process.env.DATABASE_URL).toString();
 
 sqlite3.verbose();
 
-const db = new sqlite3.Database(new URL(process.env.DATABASE_URL).pathname);
+const db = new sqlite3.Database(new URL(databaseUrl).pathname);
 
 // Caching
 const ENABLE_CACHE = (process.env.ENABLE_CACHE === "true");
