@@ -318,17 +318,22 @@ app.get("/search.json", async (_req, res, next) => {
 
 app.post("/all-packages", async (_req, res, next) => {
   db.all(
-    "SELECT CONCAT(p.author, '/', p.project) AS name, r.version FROM packages AS p INNER JOIN releases AS r ON p.id = r.package_id",
+    "SELECT CONCAT(p.author, '/', p.project) AS name, r.version, r.is_guida FROM packages AS p INNER JOIN releases AS r ON p.id = r.package_id",
     (err, rows) => {
       if (err) {
         next(err);
       } else {
         res.set("Content-Type", "application/json").send(
           rows.reduce((acc, row) => {
-            acc[row.name] ||= [];
-            acc[row.name].push(row.version);
+            if (row.is_guida) {
+              acc.guida[row.name] ||= [];
+              acc.guida[row.name].push(row.version);
+            } else {
+              acc.elm[row.name] ||= [];
+              acc.elm[row.name].push(row.version);
+            }
             return acc;
-          }, {})
+          }, { elm: {}, guida: {} })
         );
       }
     }
@@ -337,7 +342,7 @@ app.post("/all-packages", async (_req, res, next) => {
 
 app.post("/all-packages/since/:index", async (req, res, next) => {
   db.all(
-    "SELECT CONCAT(p.author, '/', p.project, '@', r.version) AS name FROM packages AS p INNER JOIN releases AS r ON p.id = r.package_id WHERE r.id > ? ORDER BY r.id DESC",
+    "SELECT CONCAT(p.author, '/', p.project, '@', r.version) AS name, r.is_guida FROM packages AS p INNER JOIN releases AS r ON p.id = r.package_id WHERE r.id > ? ORDER BY r.id DESC",
     [req.params.index],
     (err, rows) => {
       if (err) {
@@ -345,7 +350,14 @@ app.post("/all-packages/since/:index", async (req, res, next) => {
       } else {
         res
           .set("Content-Type", "application/json")
-          .send(rows.map((row) => row.name));
+          .send(rows.reduce((acc, row) => {
+            if (row.is_guida) {
+              acc.guida.push(row.name);
+            } else {
+              acc.elm.push(row.name);
+            }
+            return acc;
+          }, { elm: [], guida: [] }));
       }
     }
   );
