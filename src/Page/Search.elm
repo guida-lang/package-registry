@@ -93,7 +93,7 @@ update msg model =
 
 view : Model -> Skeleton.Details Msg
 view model =
-    { title = "Elm Packages"
+    { title = "Guida Packages"
     , header = []
     , warning = Skeleton.NoProblems
     , attrs = []
