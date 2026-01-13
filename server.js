@@ -22,6 +22,15 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.set("trust proxy", true);
 
+// Logging
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    console.log(`${req.method} ${req.url} took ${Date.now() - start}ms`);
+  });
+  next();
+});
+
 // CORS
 app.use(cors());
 
@@ -58,9 +67,26 @@ process.env.DATABASE_URL ||= "database/development.sqlite3"
 
 const databaseUrl = url.pathToFileURL(process.env.DATABASE_URL).toString();
 
+// Enable SQLite3 verbose mode for debugging (should be disabled in production)
 sqlite3.verbose();
 
 const db = new sqlite3.Database(new URL(databaseUrl).pathname);
+
+db.on("profile", (sql, nsecs) => {
+  if (sql.startsWith("EXPLAIN QUERY PLAN")) {
+    return;
+  }
+
+  console.log(`Execution time for "${sql}": ${nsecs}ms`);
+
+  db.get("EXPLAIN QUERY PLAN " + sql, (err, row) => {
+    if (!err) {
+      console.log(`Query Plan: ${JSON.stringify(row)}`);
+    } else {
+      console.error(`Failed to get query plan: ${err} (${sql})`);
+    }
+  });
+});
 
 // Caching
 const ENABLE_CACHE = (process.env.ENABLE_CACHE === "true");
@@ -315,7 +341,7 @@ app.get("/search.json", async (_req, res, next) => {
   );
 });
 
-app.post("/all-packages", async (_req, res, next) => {
+app.get("/all-packages", async (_req, res, next) => {
   db.all(
     "SELECT CONCAT(p.author, '/', p.project) AS name, r.version, r.is_guida FROM packages AS p INNER JOIN releases AS r ON p.id = r.package_id",
     (err, rows) => {
