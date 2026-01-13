@@ -30,7 +30,6 @@ app.use("/github/", createProxyMiddleware({
   target: "https://github.com",
   changeOrigin: true,
   followRedirects: true,
-  logger: console,
   on: {
     proxyRes: (proxyRes) => {
       proxyRes.headers["access-control-allow-origin"] = "*";
