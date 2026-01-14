@@ -341,7 +341,7 @@ app.get("/search.json", async (_req, res, next) => {
   );
 });
 
-app.get("/all-packages", async (_req, res, next) => {
+app.post("/all-packages", async (_req, res, next) => {
   db.all(
     "SELECT CONCAT(p.author, '/', p.project) AS name, r.version, r.is_guida FROM packages AS p INNER JOIN releases AS r ON p.id = r.package_id",
     (err, rows) => {
