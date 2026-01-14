@@ -26,4 +26,4 @@ primary_region = 'cdg'
 [[vm]]
   memory = '1024mb'
   cpu_kind = 'shared'
-  cpus = 4
+  cpus = 2
