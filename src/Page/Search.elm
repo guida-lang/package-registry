@@ -213,7 +213,7 @@ viewSidebar =
     Html.div [ class "catalog-sidebar" ]
         [ Html.h2 [] [ Html.text "Popular Packages" ]
         , Html.ul [] <|
-            List.map viewPopularPackage [ "stdlib" ]
+            [ viewPopularPackage "stdlib" ]
         , Html.h2 [] [ Html.text "Resources" ]
         , Html.ul []
             [ Html.li [] [ Html.a [ href "https://klaftertief.github.io/elm-search/" ] [ Html.text "Search by Type" ] ]
