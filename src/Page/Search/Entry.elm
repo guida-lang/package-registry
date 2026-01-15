@@ -2,6 +2,7 @@ module Page.Search.Entry exposing
     ( Entry
     , decoder
     , search
+    , sortEntries
     )
 
 import Elm.Version as V
@@ -52,6 +53,25 @@ search query entries =
             List.all matchesTerm queryTerms
     in
     List.filter matchesAllTerms entries
+
+
+
+-- SORTING
+
+
+sortEntries : List Entry -> List Entry
+sortEntries entries =
+    List.sortBy scoreEntry entries
+
+
+scoreEntry : Entry -> ( Int, String, String )
+scoreEntry entry =
+    case entry.author of
+        "guida-lang" ->
+            ( 0, entry.author, entry.name )
+
+        _ ->
+            ( 1, entry.author, entry.name )
 
 
 

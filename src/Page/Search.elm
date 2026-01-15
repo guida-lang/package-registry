@@ -131,7 +131,9 @@ viewSearch query entries =
                 let
                     results : List ( String, Html msg )
                     results =
-                        List.map viewEntry (Entry.search query es)
+                        Entry.search query es
+                            |> Entry.sortEntries
+                            |> List.map viewEntry
                 in
                 Html.div []
                     [ Keyed.node "div" [] <|
@@ -211,11 +213,11 @@ viewSidebar =
     Html.div [ class "catalog-sidebar" ]
         [ Html.h2 [] [ Html.text "Popular Packages" ]
         , Html.ul [] <|
-            List.map viewPopularPackage [ "core", "html", "json", "browser", "url", "http" ]
+            List.map viewPopularPackage [ "stdlib" ]
         , Html.h2 [] [ Html.text "Resources" ]
         , Html.ul []
             [ Html.li [] [ Html.a [ href "https://klaftertief.github.io/elm-search/" ] [ Html.text "Search by Type" ] ]
-            , Html.li [] [ Html.a [ href "https://github.com/elm-lang/elm-package/blob/master/README.md" ] [ Html.text "Using Packages" ] ]
+            , Html.li [] [ Html.a [ href "https://guida-lang.org/docs/using-packages" ] [ Html.text "Using Packages" ] ]
             , Html.li [] [ Html.a [ href "/help/design-guidelines" ] [ Html.text "API Design Guidelines" ] ]
             , Html.li [] [ Html.a [ href "/help/documentation-format" ] [ Html.text "Write great docs" ] ]
             , Html.li [] [ Html.a [ href "https://guida-lang.org" ] [ Html.text "Guida Website" ] ]
@@ -227,9 +229,9 @@ viewPopularPackage : String -> Html msg
 viewPopularPackage project =
     Html.li []
         [ Html.a
-            [ href (Href.toVersion "elm" project Nothing)
+            [ href (Href.toVersion "guida-lang" project Nothing)
             ]
-            [ Html.span [ class "light" ] [ Html.text "elm/" ]
+            [ Html.span [ class "light" ] [ Html.text "guida-lang/" ]
             , Html.text project
             ]
         ]
